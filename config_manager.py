@@ -96,3 +96,14 @@ class ConfigManager:
     def get_rotations(self) -> List[Dict[str, float]]:
         """Get rotations for each point"""
         return self.config["translation"].get("rotations", [])
+    
+    def set_camera_settings(self, settings: Dict[str, Any]):
+        """Set camera settings (position and rotation)"""
+        self.config["camera"] = settings
+    
+    def get_camera_settings(self) -> Dict[str, Any]:
+        """Get camera settings"""
+        return self.config.get("camera", {
+            "position": [0, 0, -150],
+            "rotation": {"x": 0, "y": 0, "z": 0}
+        })

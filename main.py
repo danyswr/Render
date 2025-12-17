@@ -27,10 +27,15 @@ def render_with_config(config: ConfigManager):
     print(f"Rocket built! Centroid: {centroid}")
     
     print("\n[2] Setting up Camera...")
-    cam_position = (rocket.cx, rocket.cy - 120, rocket.cz - 600)
+    camera_settings = config.get_camera_settings()
+    cam_pos = camera_settings.get("position", [0, 0, -150])
+    cam_rotation = camera_settings.get("rotation", {"x": 0, "y": 0, "z": 0})
+    
+    cam_position = (cam_pos[0] + rocket.cx, cam_pos[1] + rocket.cy, cam_pos[2] + rocket.cz)
     cam_target = (rocket.cx, rocket.cy, rocket.cz)
-    camera = Camera(cam_position, cam_target)
+    camera = Camera(cam_position, cam_target, cam_rotation)
     print(f"Camera positioned at: {cam_position}")
+    print(f"Camera rotation: X={cam_rotation['x']}° Y={cam_rotation['y']}° Z={cam_rotation['z']}°")
     print(f"Looking at: {cam_target}")
     
     print("\n[3] Initializing Renderer...")
@@ -105,7 +110,7 @@ def main():
     print("Use the grid to measure coordinates accurately.")
     print("\n" + "-" * 70)
     
-    load_existing = input("\nLoad existing configuration? (y/n, default=n): ").strip().lower()
+    load_existing = input("\nLoad existing configuration? (y/N, tekan Enter=tidak): ").strip().lower()
     
     if load_existing == 'y':
         config = ConfigManager()
@@ -119,7 +124,7 @@ def main():
             print("\nConfiguration cancelled. Exiting.")
             return
     
-    proceed = input("\nProceed with rendering? (y/n, default=y): ").strip().lower()
+    proceed = input("\nProceed with rendering? (Y/n, tekan Enter=ya): ").strip().lower()
     if proceed == 'n':
         print("\nRender cancelled. Configuration saved for later use.")
         return
