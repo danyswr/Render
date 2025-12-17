@@ -1,90 +1,130 @@
 """
-Main - Entry point untuk render rocket dengan input manual
-USER INPUT: Rotasi (Yaw, Pitch, Roll) dan Translasi (X, Y, Z)
+Main - Entry point untuk render rocket dengan input interaktif
+USER INPUT: Translasi (path dengan titik-titik), Skala per titik, Rotasi (X, Y, Z)
+Setiap input divisualisasikan secara real-time dengan Matplotlib
 """
-print("\033c")  # Clear console
+print("\033c")
+import os
 import numpy as np
 from rocket_model import RocketModel
 from transform import Transform
 from camera import Camera
 from renderer import Renderer
+from interactive_input import InteractiveInput
+from config_manager import ConfigManager
 
 
-def main():
-    print("=" * 60)
-    print("🚀 ROCKET 3D RENDERER - OOP VERSION")
+def render_with_config(config: ConfigManager):
+    """Render rocket using configuration"""
+    print("\n" + "=" * 60)
+    print("RENDERING ROCKET")
     print("=" * 60)
     
-    # ===== 1. BUILD ROCKET (OBJECT TIDAK DIUBAH) =====
     print("\n[1] Building Rocket Model...")
     rocket = RocketModel(col=320, row=450, length=320)
     voxel_data = rocket.build()
     centroid = rocket.get_centroid()
-    print(f"✅ Rocket built! Centroid: {centroid}")
+    print(f"Rocket built! Centroid: {centroid}")
     
-    # ===== 2. SETUP CAMERA (TETAP) =====
     print("\n[2] Setting up Camera...")
-    cam_position = (rocket.cx, rocket.cy - 120, rocket.cz - 600)  # Belakang & atas
+    cam_position = (rocket.cx, rocket.cy - 120, rocket.cz - 600)
     cam_target = (rocket.cx, rocket.cy, rocket.cz)
     camera = Camera(cam_position, cam_target)
-    print(f"✅ Camera positioned at: {cam_position}")
-    print(f"   Looking at: {cam_target}")
+    print(f"Camera positioned at: {cam_position}")
+    print(f"Looking at: {cam_target}")
     
-    # ===== 3. SETUP RENDERER =====
     print("\n[3] Initializing Renderer...")
     renderer = Renderer(width=640, height=480, fov=50, threshold=10)
-    print("✅ Renderer ready!")
+    print("Renderer ready!")
     
-    # ===== 4. USER INPUT MANUAL =====
-    print("\n" + "=" * 60)
-    print("📝 INPUT MANUAL - TRANSFORMASI ROCKET")
-    print("=" * 60)
+    translation_points = config.get_translation_points()
+    scales = config.get_scales()
+    rotation = config.get_rotation()
     
-    try:
-        print("\n🔄 ROTASI (dalam derajat):")
-        yaw = float(input("  • Yaw (rotasi Y-axis, -180 s/d 180): ") or "0")
-        pitch = float(input("  • Pitch (rotasi X-axis, -180 s/d 180): ") or "0")
-        roll = float(input("  • Roll (rotasi Z-axis, -180 s/d 180): ") or "0")
+    print("\n[4] Rendering frames...")
+    
+    if len(translation_points) == 0:
+        translation_points = [[0, 0, 0]]
+        scales = [1.0]
+    
+    rendered_images = []
+    for i, (point, scale) in enumerate(zip(translation_points, scales)):
+        print(f"\n  Frame {i+1}/{len(translation_points)}:")
+        print(f"    Position: ({point[0]:.1f}, {point[1]:.1f}, {point[2]:.1f})")
+        print(f"    Scale: {scale:.2f}x")
+        print(f"    Rotation: X={rotation['x']}°, Y={rotation['y']}°, Z={rotation['z']}°")
         
-        print("\n📍 TRANSLASI:")
-        tx = float(input("  • Translasi X (kiri/kanan): ") or "0")
-        ty = float(input("  • Translasi Y (atas/bawah): ") or "0")
-        tz = float(input("  • Translasi Z (maju/mundur): ") or "0")
+        transform = Transform()
+        transform.set_rotation_degrees(
+            yaw=rotation['y'], 
+            pitch=rotation['x'], 
+            roll=rotation['z']
+        )
+        transform.set_translation(tx=point[0], ty=point[1], tz=point[2])
         
-    except ValueError:
-        print("❌ Input tidak valid! Menggunakan default (0)...")
-        yaw = pitch = roll = tx = ty = tz = 0
+        pixel = renderer.render(voxel_data, camera, transform, centroid)
+        rendered_images.append(pixel)
+        
+        output_file = f"rocket_frame_{i:03d}.jpg"
+        filepath = renderer.save_image(pixel, output_file)
+        print(f"    Saved: {filepath}")
     
-    # ===== 5. APPLY TRANSFORM =====
-    print("\n[4] Applying Transformations...")
-    transform = Transform()
-    transform.set_rotation_degrees(yaw=yaw, pitch=pitch, roll=roll)
-    transform.set_translation(tx=tx, ty=ty, tz=tz)
-    print(f"✅ Rotation: Yaw={yaw}°, Pitch={pitch}°, Roll={roll}°")
-    print(f"✅ Translation: X={tx}, Y={ty}, Z={tz}")
-    
-    # ===== 6. RENDER =====
-    print("\n[5] Rendering...")
-    pixel = renderer.render(voxel_data, camera, transform, centroid)
-    
-    # ===== 7. SAVE & DISPLAY =====
-    output_file = "rocket_render.jpg"
-    renderer.save_image(pixel, output_file)
-    print(f"✅ Saved to: {output_file}")
-    
-    print("\n[6] Displaying result...")
-    title = f"Rocket | Yaw={yaw}° Pitch={pitch}° Roll={roll}° | T=({tx},{ty},{tz})"
-    renderer.display_images([pixel], [title])
+    print("\n[5] Creating final composite...")
+    if len(rendered_images) > 0:
+        titles = [f"Frame {i}" for i in range(len(rendered_images))]
+        renderer.display_images(rendered_images[:min(4, len(rendered_images))], 
+                               titles[:min(4, len(rendered_images))])
     
     print("\n" + "=" * 60)
-    print("✅ SELESAI!")
+    print("RENDER COMPLETE!")
     print("=" * 60)
-    print("📌 NOTES:")
-    print("  • Object Rocket: 100% TIDAK DIUBAH")
-    print("  • Transformasi: User input manual")
-    print("  • Kamera: Tetap di belakang & atas")
-    print("  • Architecture: Clean OOP (4 class + main)")
+    print(f"\nOutput saved in 'result/' folder:")
+    print(f"  - {len(rendered_images)} frame(s) rendered")
+    print(f"  - Configuration: result/animation_config.json")
     print("=" * 60)
+
+
+def main():
+    print("=" * 70)
+    print(" " * 15 + "ROCKET 3D RENDERER - INTERACTIVE MODE")
+    print("=" * 70)
+    print("\nThis program will guide you through:")
+    print("  1. Translation Path - Define waypoints with grid visualization")
+    print("  2. Scale per Point - Set object scale at each position")
+    print("  3. Rotation - Configure X/Y/Z rotation with sphere preview")
+    print("\nA Matplotlib window will open for real-time visualization.")
+    print("Use the grid to measure coordinates accurately.")
+    print("\n" + "-" * 70)
+    
+    load_existing = input("\nLoad existing configuration? (y/n, default=n): ").strip().lower()
+    
+    if load_existing == 'y':
+        config = ConfigManager()
+        config.load()
+        print("\nUsing loaded configuration.")
+    else:
+        interactive = InteractiveInput()
+        config = interactive.run()
+        
+        if config is None:
+            print("\nConfiguration cancelled. Exiting.")
+            return
+    
+    proceed = input("\nProceed with rendering? (y/n, default=y): ").strip().lower()
+    if proceed == 'n':
+        print("\nRender cancelled. Configuration saved for later use.")
+        return
+    
+    render_with_config(config)
+    
+    print("\n" + "=" * 70)
+    print("ALL DONE!")
+    print("=" * 70)
+    print("\nNotes:")
+    print("  - All outputs saved in 'result/' folder")
+    print("  - Configuration can be reused by loading animation_config.json")
+    print("  - Re-run to create new animations")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

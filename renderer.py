@@ -76,8 +76,12 @@ class Renderer:
         return pixel
     
     def save_image(self, pixel, filename):
-        """Simpan image ke file"""
-        plt.imsave(filename, pixel)
+        """Simpan image ke file in result folder"""
+        import os
+        os.makedirs("result", exist_ok=True)
+        filepath = os.path.join("result", filename)
+        plt.imsave(filepath, pixel)
+        return filepath
     
     def display_images(self, images, titles=None):
         """Display multiple images"""
@@ -93,6 +97,9 @@ class Renderer:
                 plt.title(titles[i])
             plt.axis('off')
         plt.tight_layout()
-        plt.savefig('rocket_display.png', dpi=100, bbox_inches='tight')
+        import os
+        os.makedirs("result", exist_ok=True)
+        filepath = os.path.join("result", "rocket_display.png")
+        plt.savefig(filepath, dpi=100, bbox_inches='tight')
         plt.close()
-        print("Rendered image saved to: rocket_display.png")
+        print(f"Rendered image saved to: {filepath}")
