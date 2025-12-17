@@ -6,12 +6,12 @@ Setiap input divisualisasikan secara real-time dengan Matplotlib
 print("\033c")
 import os
 import numpy as np
+from interactive_input import InteractiveInput
+from config_manager import ConfigManager
 from rocket_model import RocketModel
 from transform import Transform
 from camera import Camera
 from renderer import Renderer
-from interactive_input import InteractiveInput
-from config_manager import ConfigManager
 
 
 def render_with_config(config: ConfigManager):

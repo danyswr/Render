@@ -1,10 +1,7 @@
 """
 Renderer - Kelas untuk rendering voxel ke 2D image
 """
-import matplotlib
-matplotlib.use('Agg')
 import numpy as np
-from matplotlib import pyplot as plt
 
 
 class Renderer:
@@ -78,6 +75,9 @@ class Renderer:
     def save_image(self, pixel, filename):
         """Simpan image ke file in result folder"""
         import os
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
         os.makedirs("result", exist_ok=True)
         filepath = os.path.join("result", filename)
         plt.imsave(filepath, pixel)
@@ -85,6 +85,11 @@ class Renderer:
     
     def display_images(self, images, titles=None):
         """Display multiple images"""
+        import os
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
+        
         n = len(images)
         if n == 0:
             return
@@ -97,7 +102,6 @@ class Renderer:
                 plt.title(titles[i])
             plt.axis('off')
         plt.tight_layout()
-        import os
         os.makedirs("result", exist_ok=True)
         filepath = os.path.join("result", "rocket_display.png")
         plt.savefig(filepath, dpi=100, bbox_inches='tight')
