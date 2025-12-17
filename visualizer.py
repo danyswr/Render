@@ -51,10 +51,16 @@ class Visualizer:
         ax.set_zlim([-limit, limit])
     
     def _draw_camera_indicator(self, ax, limit=50):
-        """Draw camera as simple pyramid/cone shape"""
+        """Draw camera as bigger sphere with direction arrow"""
         cam_x, cam_y, cam_z = self.camera_position
         
-        ax.scatter([cam_x], [cam_y], [cam_z], c='purple', s=100, marker='s', label='Kamera')
+        u = np.linspace(0, 2 * np.pi, 20)
+        v = np.linspace(0, np.pi, 15)
+        cam_radius = max(limit * 0.08, 8)
+        sphere_x = cam_x + cam_radius * np.outer(np.cos(u), np.sin(v))
+        sphere_y = cam_y + cam_radius * np.outer(np.sin(u), np.sin(v))
+        sphere_z = cam_z + cam_radius * np.outer(np.ones(np.size(u)), np.cos(v))
+        ax.plot_surface(sphere_x, sphere_y, sphere_z, color='purple', alpha=0.8)
         
         forward = np.array([0, 0, 1])
         rx = np.radians(self.camera_rotation['x'])
@@ -67,11 +73,14 @@ class Visualizer:
         R = Rz @ Ry @ Rx
         
         forward = R @ forward
-        arrow_len = min(limit * 0.3, 25)
+        arrow_len = max(limit * 0.25, 20)
         
         ax.quiver(cam_x, cam_y, cam_z, 
                   forward[0]*arrow_len, forward[1]*arrow_len, forward[2]*arrow_len,
-                  color='purple', arrow_length_ratio=0.2, linewidth=2)
+                  color='purple', arrow_length_ratio=0.15, linewidth=3)
+        
+        ax.text(cam_x, cam_y, cam_z + cam_radius + 5, 'KAMERA', fontsize=9, 
+                fontweight='bold', color='purple', ha='center')
     
     def _get_camera_transform(self):
         """Get camera transformation matrix"""
@@ -97,7 +106,7 @@ class Visualizer:
         
         z = cam_space[2]
         if z <= 0.1:
-            return None, None, False
+            return None, None, None, False
         
         fov_rad = np.radians(self.fov)
         f = 1.0 / np.tan(fov_rad / 2)
@@ -105,10 +114,48 @@ class Visualizer:
         x_2d = (cam_space[0] / z) * f
         y_2d = (cam_space[1] / z) * f
         
-        return x_2d, y_2d, True
+        return x_2d, y_2d, cam_space, True
+    
+    def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
+        """Determine which color of the sphere is visible from camera perspective"""
+        translated = np.array(world_pos) - cam_pos
+        cam_space = R_cam_inv @ translated
+        
+        if cam_space[2] <= 0:
+            return 'gray'
+        
+        view_dir = -cam_space / np.linalg.norm(cam_space)
+        
+        rx = np.radians(rotation.get('x', 0))
+        ry = np.radians(rotation.get('y', 0))
+        rz = np.radians(rotation.get('z', 0))
+        
+        Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
+        Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
+        Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
+        R_obj = Rz @ Ry @ Rx
+        
+        front = R_obj @ np.array([1, 0, 0])
+        right = R_obj @ np.array([0, 1, 0])
+        back = R_obj @ np.array([-1, 0, 0])
+        left = R_obj @ np.array([0, -1, 0])
+        
+        front_cam = R_cam_inv @ front
+        right_cam = R_cam_inv @ right
+        back_cam = R_cam_inv @ back
+        left_cam = R_cam_inv @ left
+        
+        dots = {
+            'red': np.dot(front_cam, view_dir),
+            'green': np.dot(right_cam, view_dir),
+            'yellow': np.dot(back_cam, view_dir),
+            'blue': np.dot(left_cam, view_dir)
+        }
+        
+        return max(dots, key=dots.get)
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
-        """Draw clean 2D camera POV with white background and simple grid"""
+        """Draw clean 2D camera POV - shows what camera sees with correct colors"""
         R_cam_inv, cam_pos = self._get_camera_transform()
         
         ax.set_facecolor('white')
@@ -125,18 +172,27 @@ class Visualizer:
         if len(objects_positions) > 0:
             projected = []
             for i, point in enumerate(objects_positions):
-                x_2d, y_2d, visible = self._project_to_2d(point, R_cam_inv, cam_pos)
+                x_2d, y_2d, cam_space, visible = self._project_to_2d(point, R_cam_inv, cam_pos)
                 if visible:
                     rot = rotations[i] if rotations and i < len(rotations) else {"x": 0, "y": 0, "z": 0}
-                    projected.append((x_2d, y_2d, i, point, rot))
+                    visible_color = self._get_visible_color_from_camera(point, rot, R_cam_inv, cam_pos)
+                    distance = np.linalg.norm(cam_space)
+                    projected.append((x_2d, y_2d, i, point, rot, visible_color, distance))
             
             if len(projected) > 1:
                 xs = [p[0] for p in projected]
                 ys = [p[1] for p in projected]
                 ax.plot(xs, ys, 'k-', linewidth=1, alpha=0.5)
             
-            for x_2d, y_2d, idx, world_pt, rot in projected:
-                self._draw_oriented_circle_2d(ax, x_2d, y_2d, 0.15, rot)
+            for x_2d, y_2d, idx, world_pt, rot, visible_color, distance in projected:
+                size = max(0.3, 1.5 - distance / 200)
+                
+                circle = plt.Circle((x_2d, y_2d), size * 0.2, color=visible_color, alpha=0.9)
+                ax.add_patch(circle)
+                
+                edge = plt.Circle((x_2d, y_2d), size * 0.2, fill=False, 
+                                  edgecolor='black', linewidth=2)
+                ax.add_patch(edge)
                 
                 if idx == 0:
                     label = "START"
@@ -144,14 +200,14 @@ class Visualizer:
                     label = "END"
                 else:
                     label = f"P{idx}"
-                ax.annotate(label, (x_2d, y_2d), xytext=(5, 5), 
-                           textcoords='offset points', fontsize=8, fontweight='bold')
+                ax.annotate(label, (x_2d, y_2d), xytext=(8, 8), 
+                           textcoords='offset points', fontsize=9, fontweight='bold')
         
-        origin_x, origin_y, visible = self._project_to_2d([0, 0, 0], R_cam_inv, cam_pos)
+        origin_x, origin_y, _, visible = self._project_to_2d([0, 0, 0], R_cam_inv, cam_pos)
         if visible:
-            ax.plot(origin_x, origin_y, 'k+', markersize=10, markeredgewidth=2)
-            ax.annotate('O', (origin_x, origin_y), xytext=(-10, -10), 
-                       textcoords='offset points', fontsize=8, color='gray')
+            ax.plot(origin_x, origin_y, 'k+', markersize=12, markeredgewidth=2)
+            ax.annotate('O', (origin_x, origin_y), xytext=(-12, -12), 
+                       textcoords='offset points', fontsize=9, color='gray')
         
         cam_rot = self.camera_rotation
         title = f'Sudut Pandang Kamera (2D)\n'
@@ -159,38 +215,10 @@ class Visualizer:
         title += f'Rot: ({cam_rot["x"]:.0f}, {cam_rot["y"]:.0f}, {cam_rot["z"]:.0f})'
         ax.set_title(title, fontsize=10)
     
-    def _draw_oriented_circle_2d(self, ax, cx, cy, radius, rotation):
-        """Draw a simple oriented circle in 2D with color sections"""
-        theta = np.linspace(0, 2*np.pi, 100)
-        
-        rot_z = np.radians(rotation.get('z', 0) + rotation.get('y', 0))
-        
-        for i, angle in enumerate(theta[:-1]):
-            x1 = cx + radius * np.cos(angle + rot_z)
-            y1 = cy + radius * np.sin(angle + rot_z)
-            x2 = cx + radius * np.cos(theta[i+1] + rot_z)
-            y2 = cy + radius * np.sin(theta[i+1] + rot_z)
-            
-            base_angle = angle
-            if -np.pi/4 <= base_angle <= np.pi/4:
-                color = 'red'
-            elif np.pi/4 < base_angle <= 3*np.pi/4:
-                color = 'green'
-            elif -3*np.pi/4 <= base_angle < -np.pi/4:
-                color = 'blue'
-            else:
-                color = 'yellow'
-            
-            ax.plot([x1, x2], [y1, y2], color=color, linewidth=3)
-        
-        front_x = cx + radius * 1.3 * np.cos(rot_z)
-        front_y = cy + radius * 1.3 * np.sin(rot_z)
-        ax.plot([cx, front_x], [cy, front_y], 'r-', linewidth=2)
-    
     def _draw_oriented_sphere(self, ax, position: List[float], radius: float, rotation: Dict):
         """Draw colored sphere showing orientation - DEPAN(merah) BELAKANG(kuning) KIRI(biru) KANAN(hijau)"""
-        u = np.linspace(0, 2 * np.pi, 30)
-        v = np.linspace(0, np.pi, 20)
+        u = np.linspace(0, 2 * np.pi, 40)
+        v = np.linspace(0, np.pi, 30)
         
         x_sphere = radius * np.outer(np.cos(u), np.sin(v))
         y_sphere = radius * np.outer(np.sin(u), np.sin(v))
@@ -226,7 +254,7 @@ class Visualizer:
         ax.plot_surface(x_rot, y_rot, z_rot, facecolors=colors, shade=True)
     
     def show_translation_with_sphere(self, points: List[List[float]], current_point: Optional[List[float]] = None, rotations: List[Dict] = None):
-        """Show translation path with oriented spheres - clean view"""
+        """Show translation path with oriented spheres - bigger spheres"""
         self._ensure_figure()
         
         all_coords = []
@@ -243,6 +271,7 @@ class Visualizer:
             max_coord = 50
         
         limit = int(max_coord)
+        sphere_radius = max(limit * 0.08, 8)
         
         self._add_grid_3d(self.ax_scene, limit)
         
@@ -252,7 +281,7 @@ class Visualizer:
         if len(points) > 0:
             for i, point in enumerate(points):
                 rot = rotations[i] if i < len(rotations) else {"x": 0, "y": 0, "z": 0}
-                self._draw_oriented_sphere(self.ax_scene, point, 5, rot)
+                self._draw_oriented_sphere(self.ax_scene, point, sphere_radius, rot)
                 
                 if i == 0:
                     label = "START"
@@ -260,24 +289,26 @@ class Visualizer:
                     label = "END"
                 else:
                     label = f"P{i}"
-                self.ax_scene.text(point[0]+3, point[1]+3, point[2]+3, label, fontsize=9, fontweight='bold')
+                self.ax_scene.text(point[0]+sphere_radius+2, point[1]+sphere_radius+2, 
+                                   point[2]+sphere_radius+2, label, fontsize=10, fontweight='bold')
             
             if len(points) > 1:
                 pts = np.array(points)
-                self.ax_scene.plot(pts[:, 0], pts[:, 1], pts[:, 2], 'k-', linewidth=1, alpha=0.5)
+                self.ax_scene.plot(pts[:, 0], pts[:, 1], pts[:, 2], 'k-', linewidth=2, alpha=0.5)
         
         if current_point is not None:
             rot = rotations[len(points)] if len(points) < len(rotations) else {"x": 0, "y": 0, "z": 0}
-            self._draw_oriented_sphere(self.ax_scene, current_point, 6, rot)
-            self.ax_scene.text(current_point[0]+3, current_point[1]+3, current_point[2]+3, 
-                              'BARU', fontsize=9, fontweight='bold', color='orange')
+            self._draw_oriented_sphere(self.ax_scene, current_point, sphere_radius * 1.2, rot)
+            self.ax_scene.text(current_point[0]+sphere_radius+2, current_point[1]+sphere_radius+2, 
+                              current_point[2]+sphere_radius+2, 
+                              'BARU', fontsize=10, fontweight='bold', color='orange')
             
             if len(points) > 0:
                 last = points[-1]
                 self.ax_scene.plot([last[0], current_point[0]], 
                                    [last[1], current_point[1]], 
                                    [last[2], current_point[2]], 
-                                   'k--', linewidth=1, alpha=0.5)
+                                   'k--', linewidth=2, alpha=0.5)
         
         self._draw_camera_indicator(self.ax_scene, limit)
         
@@ -287,6 +318,7 @@ class Visualizer:
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+        plt.pause(0.01)
     
     def show_translation_path(self, points: List[List[float]]):
         self.show_translation_with_sphere(points, None)
@@ -298,7 +330,7 @@ class Visualizer:
         if rotation is None:
             rotation = {"x": 0, "y": 0, "z": 0}
         
-        radius = max(scale * 6, 3)
+        radius = max(scale * 10, 8)
         self._draw_oriented_sphere(self.ax_scene, position, radius, rotation)
         
         max_range = max(np.abs(position).max() + radius * 2, np.abs(self.camera_position).max(), 50)
@@ -313,15 +345,19 @@ class Visualizer:
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+        plt.pause(0.01)
     
     def show_rotation_at_position(self, position: List[float], rot_x: float, rot_y: float, rot_z: float, point_label: str = ""):
         """Show rotation preview with oriented sphere"""
         self._ensure_figure()
         
         rotation = {"x": rot_x, "y": rot_y, "z": rot_z}
-        self._draw_oriented_sphere(self.ax_scene, position, 8, rotation)
         
-        max_range = max(np.abs(position).max() + 20, np.abs(self.camera_position).max(), 50)
+        max_range = max(np.abs(position).max() + 30, np.abs(self.camera_position).max(), 50)
+        sphere_radius = max(max_range * 0.1, 12)
+        
+        self._draw_oriented_sphere(self.ax_scene, position, sphere_radius, rotation)
+        
         self._add_grid_3d(self.ax_scene, int(max_range))
         self._draw_camera_indicator(self.ax_scene, int(max_range))
         
@@ -333,6 +369,7 @@ class Visualizer:
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+        plt.pause(0.01)
     
     def show_rotation_preview(self, rot_x: float, rot_y: float, rot_z: float):
         """Show rotation preview at origin"""
@@ -348,13 +385,15 @@ class Visualizer:
         coords_array = np.array(all_coords)
         max_coord = max(np.abs(coords_array).max() + 30, 50)
         limit = int(max_coord)
+        sphere_radius = max(limit * 0.08, 8)
         
         self._add_grid_3d(self.ax_scene, limit)
         
         rotations = [{"x": 0, "y": 0, "z": 0} for _ in object_positions]
         for i, pos in enumerate(object_positions):
-            self._draw_oriented_sphere(self.ax_scene, pos, 5, rotations[i])
-            self.ax_scene.text(pos[0]+3, pos[1]+3, pos[2]+3, f'P{i}', fontsize=9)
+            self._draw_oriented_sphere(self.ax_scene, pos, sphere_radius, rotations[i])
+            self.ax_scene.text(pos[0]+sphere_radius+2, pos[1]+sphere_radius+2, 
+                              pos[2]+sphere_radius+2, f'P{i}', fontsize=10, fontweight='bold')
         
         self._draw_camera_indicator(self.ax_scene, limit)
         
@@ -364,6 +403,7 @@ class Visualizer:
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+        plt.pause(0.01)
     
     def save_current(self, filename: str):
         if self.fig is not None:
