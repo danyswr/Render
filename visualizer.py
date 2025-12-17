@@ -6,7 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from typing import List, Optional, Dict
 
 class Visualizer:
-    """Handles all visualization using Matplotlib with real-time updates - Dual View"""
+    """Handles all visualization using Matplotlib with real-time updates - Dual View (3D Scene + 2D Camera POV)"""
     
     def __init__(self):
         plt.ion()
@@ -17,13 +17,14 @@ class Visualizer:
         self.camera_position = np.array([0.0, 0.0, -150.0])
         self.camera_rotation = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.camera_target = np.array([0.0, 0.0, 0.0])
+        self.fov = 60
     
     def _ensure_figure(self):
-        """Ensure dual figure exists and is ready"""
+        """Ensure dual figure exists: 3D scene (left) + 2D camera POV (right)"""
         if self.fig is None or not plt.fignum_exists(self.fig.number):
             self.fig = plt.figure(figsize=(16, 7))
             self.ax_scene = self.fig.add_subplot(121, projection='3d')
-            self.ax_camera = self.fig.add_subplot(122, projection='3d')
+            self.ax_camera = self.fig.add_subplot(122)
             self.fig.tight_layout(pad=3.0)
         else:
             self.ax_scene.clear()
@@ -50,7 +51,7 @@ class Visualizer:
         }
     
     def _add_grid(self, ax, limit=50):
-        """Add grid lines to help measure coordinates"""
+        """Add grid lines to help measure coordinates (for 3D axis)"""
         ax.set_xlabel('X', fontsize=12, fontweight='bold', color='red')
         ax.set_ylabel('Y', fontsize=12, fontweight='bold', color='green')
         ax.set_zlabel('Z', fontsize=12, fontweight='bold', color='blue')
@@ -101,8 +102,8 @@ class Visualizer:
         
         return f"Pos:({cam_x:.0f},{cam_y:.0f},{cam_z:.0f})"
     
-    def _draw_camera_pov(self, ax, objects_positions: List[List[float]], limit=50):
-        """Draw the camera POV view - what camera sees"""
+    def _get_camera_transform(self):
+        """Get camera transformation matrix"""
         cam_pos = self.camera_position
         cam_rot = self.camera_rotation
         
@@ -122,48 +123,128 @@ class Visualizer:
         R_cam = Rz @ Ry @ Rx
         R_cam_inv = R_cam.T
         
-        def world_to_camera(world_point):
-            translated = np.array(world_point) - cam_pos
-            cam_space = R_cam_inv @ translated
-            return cam_space
+        return R_cam_inv, cam_pos
+    
+    def _project_to_2d(self, world_point, R_cam_inv, cam_pos):
+        """Project 3D world point to 2D camera view using perspective projection"""
+        translated = np.array(world_point) - cam_pos
+        cam_space = R_cam_inv @ translated
         
-        self._add_grid(ax, limit)
+        z = cam_space[2]
+        if z <= 0.1:
+            return None, None, False
         
-        ax.plot([0], [0], [0], 'mo', markersize=10, label='Posisi Kamera')
+        fov_rad = np.radians(self.fov)
+        f = 1.0 / np.tan(fov_rad / 2)
         
-        arrow_len = limit * 0.4
-        ax.quiver(0, 0, 0, 0, 0, arrow_len, color='cyan', arrow_length_ratio=0.1, 
-                  linewidth=3, label='Arah Pandang')
+        x_2d = (cam_space[0] / z) * f
+        y_2d = (cam_space[1] / z) * f
         
+        return x_2d, y_2d, True
+    
+    def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], current_point=None):
+        """Draw 2D camera POV - what camera actually sees (like a photo/video frame)"""
+        R_cam_inv, cam_pos = self._get_camera_transform()
+        
+        ax.set_xlim([-1.5, 1.5])
+        ax.set_ylim([-1.5, 1.5])
+        ax.set_aspect('equal')
+        ax.set_facecolor('#1a1a2e')
+        
+        frame = plt.Rectangle((-1.2, -0.9), 2.4, 1.8, fill=False, 
+                              edgecolor='white', linewidth=3)
+        ax.add_patch(frame)
+        
+        inner_frame = plt.Rectangle((-1.1, -0.8), 2.2, 1.6, fill=True, 
+                                    facecolor='#16213e', edgecolor='#4a90d9', linewidth=1)
+        ax.add_patch(inner_frame)
+        
+        for i in range(-10, 11, 2):
+            alpha = 0.3 if i % 4 == 0 else 0.1
+            ax.axhline(y=i*0.08, color='#4a90d9', alpha=alpha, linewidth=0.5, 
+                      xmin=0.04, xmax=0.96)
+            ax.axvline(x=i*0.11, color='#4a90d9', alpha=alpha, linewidth=0.5,
+                      ymin=0.06, ymax=0.94)
+        
+        ax.plot([-0.05, 0.05], [0, 0], 'w-', linewidth=1, alpha=0.5)
+        ax.plot([0, 0], [-0.05, 0.05], 'w-', linewidth=1, alpha=0.5)
+        
+        projected_points = []
         if len(objects_positions) > 0:
-            cam_points = []
-            for point in objects_positions:
-                cam_point = world_to_camera(point)
-                cam_points.append(cam_point)
-            
-            cam_points = np.array(cam_points)
-            ax.scatter(cam_points[:, 0], cam_points[:, 1], cam_points[:, 2],
-                      c='red', s=200, marker='o', edgecolors='darkred', linewidths=2,
-                      label='Objek (dari kamera)')
-            
-            if len(cam_points) > 1:
-                ax.plot(cam_points[:, 0], cam_points[:, 1], cam_points[:, 2],
-                       'r-', linewidth=2, alpha=0.7)
-            
-            for i, cp in enumerate(cam_points):
-                label = "START" if i == 0 else f"P{i}"
-                ax.text(cp[0]+2, cp[1]+2, cp[2]+2, label, fontsize=9, color='darkred')
+            for i, point in enumerate(objects_positions):
+                x_2d, y_2d, visible = self._project_to_2d(point, R_cam_inv, cam_pos)
+                if visible:
+                    projected_points.append((x_2d, y_2d, i, point))
         
-        origin_cam = world_to_camera([0, 0, 0])
-        ax.scatter([origin_cam[0]], [origin_cam[1]], [origin_cam[2]], 
-                  c='yellow', s=100, marker='x', linewidths=2, label='Origin World')
+        if current_point is not None:
+            x_2d, y_2d, visible = self._project_to_2d(current_point, R_cam_inv, cam_pos)
+            if visible:
+                projected_points.append((x_2d, y_2d, -1, current_point))
         
-        rot_info = f"Rot: X={cam_rot['x']:.0f}° Y={cam_rot['y']:.0f}° Z={cam_rot['z']:.0f}°"
-        pos_info = f"Pos: ({cam_pos[0]:.0f}, {cam_pos[1]:.0f}, {cam_pos[2]:.0f})"
+        if len(projected_points) > 1:
+            path_points = [(p[0], p[1]) for p in projected_points if p[2] >= 0]
+            if len(path_points) > 1:
+                xs = [p[0] for p in path_points]
+                ys = [p[1] for p in path_points]
+                ax.plot(xs, ys, 'r-', linewidth=2, alpha=0.7)
         
-        title = f'SUDUT PANDANG KAMERA (POV)\n{pos_info}\n{rot_info}'
-        ax.set_title(title, fontsize=11, fontweight='bold', color='purple')
-        ax.legend(loc='upper right', fontsize=8)
+        for x_2d, y_2d, idx, world_pt in projected_points:
+            if -1.1 <= x_2d <= 1.1 and -0.8 <= y_2d <= 0.8:
+                if idx == -1:
+                    ax.scatter([x_2d], [y_2d], c='orange', s=250, marker='*', 
+                              edgecolors='yellow', linewidths=2, zorder=10)
+                    ax.annotate('BARU', (x_2d, y_2d), xytext=(5, 5), 
+                               textcoords='offset points', fontsize=8, 
+                               color='orange', fontweight='bold')
+                elif idx == 0:
+                    ax.scatter([x_2d], [y_2d], c='lime', s=200, marker='o', 
+                              edgecolors='darkgreen', linewidths=2, zorder=9)
+                    ax.annotate('START', (x_2d, y_2d), xytext=(5, 5), 
+                               textcoords='offset points', fontsize=8, 
+                               color='lime', fontweight='bold')
+                else:
+                    ax.scatter([x_2d], [y_2d], c='red', s=150, marker='o', 
+                              edgecolors='darkred', linewidths=2, zorder=8)
+                    label = f'P{idx}'
+                    ax.annotate(label, (x_2d, y_2d), xytext=(5, 5), 
+                               textcoords='offset points', fontsize=8, 
+                               color='white', fontweight='bold')
+            else:
+                arrow_x = np.clip(x_2d, -1.0, 1.0)
+                arrow_y = np.clip(y_2d, -0.7, 0.7)
+                ax.annotate('', xy=(arrow_x, arrow_y), 
+                           xytext=(0, 0),
+                           arrowprops=dict(arrowstyle='->', color='yellow', lw=2))
+                ax.text(arrow_x, arrow_y, f'P{idx}(luar)', fontsize=7, color='yellow')
+        
+        origin_x, origin_y, origin_visible = self._project_to_2d([0, 0, 0], R_cam_inv, cam_pos)
+        if origin_visible and -1.1 <= origin_x <= 1.1 and -0.8 <= origin_y <= 0.8:
+            ax.scatter([origin_x], [origin_y], c='cyan', s=100, marker='x', 
+                      linewidths=2, zorder=5)
+            ax.annotate('ORIGIN', (origin_x, origin_y), xytext=(-30, -15), 
+                       textcoords='offset points', fontsize=7, color='cyan')
+        
+        cam_rot = self.camera_rotation
+        pos_info = f"Kamera: ({self.camera_position[0]:.0f}, {self.camera_position[1]:.0f}, {self.camera_position[2]:.0f})"
+        rot_info = f"Rotasi: X={cam_rot['x']:.0f}° Y={cam_rot['y']:.0f}° Z={cam_rot['z']:.0f}°"
+        
+        visible_count = len([p for p in projected_points if -1.1 <= p[0] <= 1.1 and -0.8 <= p[1] <= 0.8])
+        total_count = len(objects_positions) + (1 if current_point else 0)
+        
+        ax.text(0, 1.25, 'SUDUT PANDANG KAMERA (2D)', fontsize=12, fontweight='bold', 
+               color='white', ha='center')
+        ax.text(0, 1.05, pos_info, fontsize=9, color='#4a90d9', ha='center')
+        ax.text(0, 0.95, rot_info, fontsize=9, color='#4a90d9', ha='center')
+        
+        ax.text(-1.1, -1.1, f'Terlihat: {visible_count}/{total_count} titik', 
+               fontsize=9, color='lime' if visible_count == total_count else 'orange')
+        
+        ax.text(0.95, -1.1, f'FOV: {self.fov}°', fontsize=8, color='gray', ha='right')
+        
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
     
     def _draw_orientation_sphere(self, ax, position: List[float], radius: float = 5):
         """Draw a colored sphere showing orientation at position"""
@@ -192,7 +273,7 @@ class Visualizer:
         ax.plot_surface(x, y, z, facecolors=colors, shade=True)
     
     def show_translation_with_sphere(self, points: List[List[float]], current_point: Optional[List[float]] = None):
-        """Show translation path with sphere at current position - DUAL VIEW"""
+        """Show translation path with sphere at current position - DUAL VIEW (3D + 2D POV)"""
         self._ensure_figure()
         
         all_coords = []
@@ -223,7 +304,7 @@ class Visualizer:
                             'r-', linewidth=3, alpha=0.7)
             
             for i, point in enumerate(points):
-                label = "START" if i == 0 else f"P{i}"
+                label = "START" if i == 0 else ("END" if i == len(points)-1 and len(points) > 1 else f"P{i}")
                 self.ax_scene.text(point[0]+2, point[1]+2, point[2]+2, 
                             f'{label}\n({point[0]:.0f},{point[1]:.0f},{point[2]:.0f})', 
                             fontsize=10, fontweight='bold', color='darkred')
@@ -251,10 +332,7 @@ class Visualizer:
         self.ax_scene.set_title(title, fontsize=11, fontweight='bold')
         self.ax_scene.legend(loc='upper right', fontsize=8)
         
-        all_points_for_pov = points.copy() if points else []
-        if current_point:
-            all_points_for_pov.append(current_point)
-        self._draw_camera_pov(self.ax_camera, all_points_for_pov, limit)
+        self._draw_camera_pov_2d(self.ax_camera, points, current_point)
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -306,7 +384,7 @@ class Visualizer:
         title += f'Kamera: {cam_info}'
         self.ax_scene.set_title(title, fontsize=11, fontweight='bold')
         
-        self._draw_camera_pov(self.ax_camera, [position], int(max_range))
+        self._draw_camera_pov_2d(self.ax_camera, [position])
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -388,7 +466,7 @@ class Visualizer:
         title += f'X:{rot_x}° Y:{rot_y}° Z:{rot_z}° | Kamera: {cam_info}'
         self.ax_scene.set_title(title, fontsize=10, fontweight='bold')
         
-        self._draw_camera_pov(self.ax_camera, [position], int(max_range))
+        self._draw_camera_pov_2d(self.ax_camera, [position])
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -471,7 +549,7 @@ class Visualizer:
         self.ax_scene.set_title(title, fontsize=11, fontweight='bold')
         self.ax_scene.legend(loc='upper right', fontsize=8)
         
-        self._draw_camera_pov(self.ax_camera, [[0, 0, 0]], limit)
+        self._draw_camera_pov_2d(self.ax_camera, [[0, 0, 0]])
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -508,7 +586,7 @@ class Visualizer:
         self.ax_scene.set_title(title, fontsize=11, fontweight='bold')
         self.ax_scene.legend(loc='upper right', fontsize=8)
         
-        self._draw_camera_pov(self.ax_camera, object_positions, limit)
+        self._draw_camera_pov_2d(self.ax_camera, object_positions)
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()

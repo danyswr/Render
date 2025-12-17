@@ -58,69 +58,64 @@ class InteractiveInput:
             else:
                 print("Tekan Enter untuk default, atau ketik 'y'/'n'")
     
-    def _display_points_list(self, points: List[List[float]], title: str = "DAFTAR TITIK"):
-        """Display numbered list of points"""
-        print("\n" + "=" * 50)
+    def _display_points_table(self, points: List[List[float]], title: str = "DAFTAR TITIK TRANSLASI"):
+        """Display clean table of points"""
+        print("\n" + "=" * 55)
         print(f"  {title}")
-        print("=" * 50)
+        print("=" * 55)
         if len(points) == 0:
             print("  (Belum ada titik)")
         else:
+            print("  No.  | Label  | Koordinat (X, Y, Z)")
+            print("  " + "-" * 50)
             for i, point in enumerate(points):
-                label = "START" if i == 0 else ("END" if i == len(points)-1 and len(points) > 1 else f"P{i}")
-                print(f"  {i+1}. {label}: ({point[0]:.1f}, {point[1]:.1f}, {point[2]:.1f})")
-        print("=" * 50)
+                if i == 0:
+                    label = "START"
+                elif i == len(points) - 1 and len(points) > 1:
+                    label = "END"
+                else:
+                    label = f"P{i}"
+                print(f"  {i+1:3}.  | {label:6} | ({point[0]:7.1f}, {point[1]:7.1f}, {point[2]:7.1f})")
+        print("=" * 55)
     
     def _display_menu(self, options: List[str], default: int = 1):
         """Display menu options with default"""
-        print("\n" + "-" * 30)
+        print("\n" + "-" * 35)
         print("  OPSI:")
-        print("-" * 30)
+        print("-" * 35)
         for i, opt in enumerate(options):
-            marker = " [default]" if i + 1 == default else ""
+            marker = " [Enter]" if i + 1 == default else ""
             print(f"  {i+1}. {opt}{marker}")
-        print("-" * 30)
+        print("-" * 35)
     
-    def _input_single_point(self, default_x=0.0, default_y=0.0, default_z=0.0) -> List[float]:
-        """Input a single 3D point"""
-        print(f"Masukkan X [Enter={default_x}]: ", end="", flush=True)
-        x = self._get_float_input("", default_x)
-        print(f"X = {x}")
+    def _input_xyz_inline(self, prompt: str, default_x=0.0, default_y=0.0, default_z=0.0) -> List[float]:
+        """Input XYZ coordinates with clean inline format"""
+        print(f"\n{prompt}")
+        print(f"  Default: ({default_x:.1f}, {default_y:.1f}, {default_z:.1f})")
         
-        print(f"Masukkan Y [Enter={default_y}]: ", end="", flush=True)
-        y = self._get_float_input("", default_y)
-        print(f"Y = {y}")
-        
-        print(f"Masukkan Z [Enter={default_z}]: ", end="", flush=True)
-        z = self._get_float_input("", default_z)
-        print(f"Z = {z}")
+        x = self._get_float_input(f"  X [{default_x:.1f}]: ", default_x)
+        y = self._get_float_input(f"  Y [{default_y:.1f}]: ", default_y)
+        z = self._get_float_input(f"  Z [{default_z:.1f}]: ", default_z)
         
         return [x, y, z]
     
     def _input_single_rotation(self, default_x=0.0, default_y=0.0, default_z=0.0) -> Dict[str, float]:
         """Input a single rotation (X, Y, Z degrees)"""
-        print(f"Rotasi X/Pitch [Enter={default_x}]: ", end="", flush=True)
-        rx = self._get_float_input("", default_x)
-        print(f"X = {rx}°")
+        print(f"\n  Default: X={default_x}°, Y={default_y}°, Z={default_z}°")
         
-        print(f"Rotasi Y/Yaw [Enter={default_y}]: ", end="", flush=True)
-        ry = self._get_float_input("", default_y)
-        print(f"Y = {ry}°")
-        
-        print(f"Rotasi Z/Roll [Enter={default_z}]: ", end="", flush=True)
-        rz = self._get_float_input("", default_z)
-        print(f"Z = {rz}°")
+        rx = self._get_float_input(f"  Rotasi X/Pitch [{default_x}]: ", default_x)
+        ry = self._get_float_input(f"  Rotasi Y/Yaw [{default_y}]: ", default_y)
+        rz = self._get_float_input(f"  Rotasi Z/Roll [{default_z}]: ", default_z)
         
         return {"x": rx, "y": ry, "z": rz}
 
     def input_camera_stage(self):
         """Stage 0: Setup camera position and rotation"""
         print("\n" + "="*60)
-        print("TAHAP 0: PENGATURAN KAMERA")
+        print("  TAHAP 0: PENGATURAN KAMERA")
         print("="*60)
-        print("Atur posisi dan rotasi kamera.")
-        print("Kamera berada DI LUAR grid dan melihat ke objek.")
-        print("Kiri = Tampilan Scene | Kanan = Sudut Pandang Kamera (POV)")
+        print("  Atur posisi dan rotasi kamera.")
+        print("  Kiri = Tampilan Scene 3D | Kanan = Sudut Pandang Kamera 2D")
         print("-"*60)
         
         cam_x, cam_y, cam_z = 0.0, 0.0, -150.0
@@ -131,30 +126,24 @@ class InteractiveInput:
         self.visualizer.show_camera_setup([[0, 0, 0]])
         
         while True:
-            print("\n--- POSISI KAMERA SAAT INI ---")
-            print(f"  Posisi: ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
-            print(f"  Rotasi: X={rot_x:.1f}° Y={rot_y:.1f}° Z={rot_z:.1f}°")
+            print("\n" + "=" * 45)
+            print("  KAMERA SAAT INI")
+            print("=" * 45)
+            print(f"  Posisi : ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
+            print(f"  Rotasi : X={rot_x:.1f}°, Y={rot_y:.1f}°, Z={rot_z:.1f}°")
+            print("=" * 45)
             
             self._display_menu(["Edit Posisi Kamera", "Edit Rotasi Kamera", "Konfirmasi"], default=3)
             
-            choice = self._get_int_input("Pilih opsi [Enter=3]: ", 1, 3, default=3)
+            choice = self._get_int_input("Pilih opsi: ", 1, 3, default=3)
             if choice == -1:
                 choice = 3
             
             if choice == 1:
                 print("\n--- EDIT POSISI KAMERA ---")
-                print("Tips: Nilai Z negatif = kamera di belakang objek (melihat ke depan)")
-                print(f"Posisi X [Enter={cam_x}]: ", end="", flush=True)
-                cam_x = self._get_float_input("", cam_x)
-                print(f"X = {cam_x}")
-                
-                print(f"Posisi Y [Enter={cam_y}]: ", end="", flush=True)
-                cam_y = self._get_float_input("", cam_y)
-                print(f"Y = {cam_y}")
-                
-                print(f"Posisi Z [Enter={cam_z}]: ", end="", flush=True)
-                cam_z = self._get_float_input("", cam_z)
-                print(f"Z = {cam_z}")
+                print("Tips: Z negatif = kamera di belakang objek")
+                pos = self._input_xyz_inline("Posisi kamera:", cam_x, cam_y, cam_z)
+                cam_x, cam_y, cam_z = pos[0], pos[1], pos[2]
                 
                 self.visualizer.set_camera_position(cam_x, cam_y, cam_z)
                 self.visualizer.show_camera_setup([[0, 0, 0]])
@@ -163,26 +152,20 @@ class InteractiveInput:
             elif choice == 2:
                 print("\n--- EDIT ROTASI KAMERA ---")
                 print("Tips: Rotasi mengubah arah pandang kamera")
-                print(f"Rotasi X (Pitch) [Enter={rot_x}]: ", end="", flush=True)
-                rot_x = self._get_float_input("", rot_x)
-                print(f"X = {rot_x}°")
-                
-                print(f"Rotasi Y (Yaw) [Enter={rot_y}]: ", end="", flush=True)
-                rot_y = self._get_float_input("", rot_y)
-                print(f"Y = {rot_y}°")
-                
-                print(f"Rotasi Z (Roll) [Enter={rot_z}]: ", end="", flush=True)
-                rot_z = self._get_float_input("", rot_z)
-                print(f"Z = {rot_z}°")
+                rot = self._input_single_rotation(rot_x, rot_y, rot_z)
+                rot_x, rot_y, rot_z = rot['x'], rot['y'], rot['z']
                 
                 self.visualizer.set_camera_rotation(rot_x, rot_y, rot_z)
                 self.visualizer.show_camera_setup([[0, 0, 0]])
                 print("Rotasi kamera diupdate!")
             
             elif choice == 3:
-                print("\n--- KONFIRMASI KAMERA ---")
-                print(f"  Posisi: ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
-                print(f"  Rotasi: X={rot_x:.1f}° Y={rot_y:.1f}° Z={rot_z:.1f}°")
+                print("\n" + "=" * 45)
+                print("  KONFIRMASI PENGATURAN KAMERA")
+                print("=" * 45)
+                print(f"  Posisi : ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
+                print(f"  Rotasi : X={rot_x:.1f}°, Y={rot_y:.1f}°, Z={rot_z:.1f}°")
+                print("=" * 45)
                 
                 if self._get_yes_no("Konfirmasi pengaturan kamera?", default_yes=True):
                     self.camera_settings = {
@@ -197,43 +180,72 @@ class InteractiveInput:
         return True
 
     def input_translation_stage(self):
-        """Stage 1: Input translation path with CRUD menu"""
+        """Stage 1: Input translation path - first set start point, then add more"""
         print("\n" + "="*60)
-        print("TAHAP 1: JALUR TRANSLASI")
+        print("  TAHAP 1: JALUR TRANSLASI")
         print("="*60)
-        print("Tentukan jalur yang akan dilalui roket.")
-        print("Gunakan GRID di matplotlib untuk mengukur koordinat.")
-        print("Kiri = Scene | Kanan = POV Kamera")
+        print("  1. Tentukan titik AWAL (START)")
+        print("  2. Tambahkan titik-titik lainnya")
+        print("  3. Titik terakhir = titik AKHIR (END)")
+        print("  ")
+        print("  Kiri = Scene 3D | Kanan = Tampilan Kamera 2D")
         print("-"*60)
         
         points = []
         
+        print("\n>>> LANGKAH 1: Tentukan Titik Awal (START)")
+        start_point = self._input_xyz_inline("Koordinat titik START:", 0.0, 0.0, 0.0)
+        self.visualizer.show_translation_with_sphere([], start_point)
+        
+        print(f"\n  Titik START: ({start_point[0]:.1f}, {start_point[1]:.1f}, {start_point[2]:.1f})")
+        if self._get_yes_no("Konfirmasi titik START?", default_yes=True):
+            points.append(start_point)
+            print("Titik START ditambahkan!")
+        else:
+            while True:
+                start_point = self._input_xyz_inline("Koordinat titik START:", 0.0, 0.0, 0.0)
+                self.visualizer.show_translation_with_sphere([], start_point)
+                print(f"\n  Titik START: ({start_point[0]:.1f}, {start_point[1]:.1f}, {start_point[2]:.1f})")
+                if self._get_yes_no("Konfirmasi titik START?", default_yes=True):
+                    points.append(start_point)
+                    print("Titik START ditambahkan!")
+                    break
+        
+        print("\n>>> LANGKAH 2: Tambahkan Titik Lainnya")
+        print("    (Titik terakhir akan menjadi END)")
+        
         while True:
-            self._display_points_list(points, "JALUR TRANSLASI")
+            self._display_points_table(points)
             self.visualizer.show_translation_with_sphere(points, None)
             
             if len(points) >= 2:
-                self._display_menu(["Tambah Titik", "Edit Titik", "Hapus Titik", "Konfirmasi"], default=4)
-                choice = self._get_int_input("Pilih opsi [Enter=4]: ", 1, 4, default=4)
+                self._display_menu([
+                    "Tambah Titik Baru",
+                    "Edit Titik",
+                    "Hapus Titik",
+                    "Konfirmasi Jalur"
+                ], default=4)
+                choice = self._get_int_input("Pilih opsi: ", 1, 4, default=4)
                 if choice == -1:
                     choice = 4
             else:
-                self._display_menu(["Tambah Titik", "Edit Titik", "Hapus Titik", "Konfirmasi"], default=1)
-                choice = self._get_int_input("Pilih opsi [Enter=1]: ", 1, 4, default=1)
+                self._display_menu([
+                    "Tambah Titik Baru",
+                    "Edit Titik",
+                    "Hapus Titik",
+                    "Konfirmasi Jalur"
+                ], default=1)
+                choice = self._get_int_input("Pilih opsi: ", 1, 4, default=1)
                 if choice == -1:
                     choice = 1
             
             if choice == 1:
                 print("\n--- TAMBAH TITIK BARU ---")
-                if len(points) == 0:
-                    default = [0.0, 0.0, 0.0]
-                else:
-                    default = points[-1].copy()
-                
-                new_point = self._input_single_point(default[0], default[1], default[2])
+                last = points[-1] if points else [0.0, 0.0, 0.0]
+                new_point = self._input_xyz_inline(f"Koordinat titik P{len(points)}:", last[0], last[1], last[2])
                 self.visualizer.show_translation_with_sphere(points, new_point)
                 
-                print(f"\nTitik baru: ({new_point[0]:.1f}, {new_point[1]:.1f}, {new_point[2]:.1f})")
+                print(f"\n  Titik baru: ({new_point[0]:.1f}, {new_point[1]:.1f}, {new_point[2]:.1f})")
                 if self._get_yes_no("Konfirmasi tambah titik ini?", default_yes=True):
                     points.append(new_point)
                     print("Titik ditambahkan!")
@@ -246,20 +258,23 @@ class InteractiveInput:
                     continue
                 
                 print("\n--- EDIT TITIK ---")
-                self._display_points_list(points)
-                idx = self._get_int_input(f"Pilih nomor titik (1-{len(points)}) [Enter=batal]: ", 1, len(points))
+                self._display_points_table(points)
+                idx = self._get_int_input(f"Pilih nomor titik (1-{len(points)}), Enter=batal: ", 1, len(points))
                 if idx == -1:
                     print("Dibatalkan.")
                     continue
                 
                 idx -= 1
-                old_point = points[idx]
-                print(f"Titik saat ini: ({old_point[0]:.1f}, {old_point[1]:.1f}, {old_point[2]:.1f})")
+                old = points[idx]
+                label = "START" if idx == 0 else ("END" if idx == len(points)-1 else f"P{idx}")
+                print(f"Mengedit titik {label}")
                 
-                new_point = self._input_single_point(old_point[0], old_point[1], old_point[2])
-                self.visualizer.show_translation_with_sphere(points[:idx] + [new_point] + points[idx+1:], None)
+                new_point = self._input_xyz_inline(f"Koordinat baru untuk {label}:", old[0], old[1], old[2])
+                temp_points = points[:idx] + [new_point] + points[idx+1:]
+                self.visualizer.show_translation_with_sphere(temp_points, None)
                 
-                print(f"\nTitik baru: ({new_point[0]:.1f}, {new_point[1]:.1f}, {new_point[2]:.1f})")
+                print(f"\n  {label} lama: ({old[0]:.1f}, {old[1]:.1f}, {old[2]:.1f})")
+                print(f"  {label} baru: ({new_point[0]:.1f}, {new_point[1]:.1f}, {new_point[2]:.1f})")
                 if self._get_yes_no("Konfirmasi perubahan?", default_yes=True):
                     points[idx] = new_point
                     print("Titik diupdate!")
@@ -271,17 +286,22 @@ class InteractiveInput:
                     print("\nBelum ada titik untuk dihapus.")
                     continue
                 
+                if len(points) == 1:
+                    print("\nTidak bisa menghapus titik START satu-satunya.")
+                    continue
+                
                 print("\n--- HAPUS TITIK ---")
-                self._display_points_list(points)
-                idx = self._get_int_input(f"Pilih nomor titik (1-{len(points)}) [Enter=batal]: ", 1, len(points))
+                self._display_points_table(points)
+                idx = self._get_int_input(f"Pilih nomor titik (1-{len(points)}), Enter=batal: ", 1, len(points))
                 if idx == -1:
                     print("Dibatalkan.")
                     continue
                 
                 idx -= 1
-                old_point = points[idx]
-                print(f"Akan menghapus: ({old_point[0]:.1f}, {old_point[1]:.1f}, {old_point[2]:.1f})")
+                old = points[idx]
+                label = "START" if idx == 0 else ("END" if idx == len(points)-1 else f"P{idx}")
                 
+                print(f"\n  Akan menghapus {label}: ({old[0]:.1f}, {old[1]:.1f}, {old[2]:.1f})")
                 if self._get_yes_no("Konfirmasi hapus?", default_yes=False):
                     points.pop(idx)
                     print("Titik dihapus!")
@@ -291,11 +311,15 @@ class InteractiveInput:
             
             elif choice == 4:
                 if len(points) < 2:
-                    print("\nMinimal 2 titik diperlukan (START dan END).")
+                    print("\n[!] Minimal 2 titik diperlukan (START dan END).")
+                    print("    Silakan tambah minimal 1 titik lagi.")
                     continue
                 
-                print("\n--- KONFIRMASI JALUR ---")
-                self._display_points_list(points, "JALUR FINAL")
+                print("\n" + "=" * 55)
+                print("  KONFIRMASI JALUR TRANSLASI")
+                print("=" * 55)
+                self._display_points_table(points, "JALUR FINAL")
+                
                 if self._get_yes_no("Konfirmasi jalur ini?", default_yes=True):
                     self.translation_points = points
                     print("Jalur translasi dikonfirmasi!")
@@ -308,22 +332,29 @@ class InteractiveInput:
     def input_scale_stage(self):
         """Stage 2: Input scale per point with CRUD menu"""
         print("\n" + "="*60)
-        print("TAHAP 2: SKALA PER TITIK")
+        print("  TAHAP 2: SKALA PER TITIK")
         print("="*60)
-        print("Atur skala objek di setiap titik.")
-        print("Sphere akan berubah ukuran sesuai skala.")
+        print("  Atur skala objek di setiap titik.")
         print("-"*60)
         
         scales = [1.0] * len(self.translation_points)
         
         def display_scales():
-            print("\n" + "=" * 50)
+            print("\n" + "=" * 60)
             print("  DAFTAR SKALA")
-            print("=" * 50)
+            print("=" * 60)
+            print("  No.  | Label  | Koordinat          | Skala")
+            print("  " + "-" * 55)
             for i, (point, scale) in enumerate(zip(self.translation_points, scales)):
-                label = "START" if i == 0 else ("END" if i == len(self.translation_points)-1 else f"P{i}")
-                print(f"  {i+1}. {label}: ({point[0]:.0f},{point[1]:.0f},{point[2]:.0f}) - Skala: {scale:.2f}x")
-            print("=" * 50)
+                if i == 0:
+                    label = "START"
+                elif i == len(self.translation_points) - 1:
+                    label = "END"
+                else:
+                    label = f"P{i}"
+                coord = f"({point[0]:.0f}, {point[1]:.0f}, {point[2]:.0f})"
+                print(f"  {i+1:3}.  | {label:6} | {coord:18} | {scale:.2f}x")
+            print("=" * 60)
         
         while True:
             display_scales()
@@ -334,14 +365,14 @@ class InteractiveInput:
             
             self._display_menu(["Edit Skala Titik", "Set Semua Sama", "Konfirmasi"], default=3)
             
-            choice = self._get_int_input("Pilih opsi [Enter=3]: ", 1, 3, default=3)
+            choice = self._get_int_input("Pilih opsi: ", 1, 3, default=3)
             if choice == -1:
                 choice = 3
             
             if choice == 1:
                 print("\n--- EDIT SKALA ---")
                 display_scales()
-                idx = self._get_int_input(f"Pilih nomor titik (1-{len(scales)}) [Enter=batal]: ", 1, len(scales))
+                idx = self._get_int_input(f"Pilih nomor titik (1-{len(scales)}), Enter=batal: ", 1, len(scales))
                 if idx == -1:
                     print("Dibatalkan.")
                     continue
@@ -350,9 +381,8 @@ class InteractiveInput:
                 point = self.translation_points[idx]
                 old_scale = scales[idx]
                 
-                print(f"Skala saat ini: {old_scale:.2f}x")
-                print(f"Masukkan skala baru [Enter={old_scale}]: ", end="", flush=True)
-                new_scale = self._get_float_input("", old_scale)
+                print(f"\n  Skala saat ini: {old_scale:.2f}x")
+                new_scale = self._get_float_input(f"  Skala baru [{old_scale}]: ", old_scale)
                 if new_scale <= 0:
                     new_scale = 1.0
                 
@@ -366,8 +396,7 @@ class InteractiveInput:
             
             elif choice == 2:
                 print("\n--- SET SEMUA SKALA SAMA ---")
-                print("Masukkan skala untuk semua titik [Enter=1.0]: ", end="", flush=True)
-                new_scale = self._get_float_input("", 1.0)
+                new_scale = self._get_float_input("  Skala untuk semua titik [1.0]: ", 1.0)
                 if new_scale <= 0:
                     new_scale = 1.0
                 
@@ -378,7 +407,9 @@ class InteractiveInput:
                     print("Dibatalkan.")
             
             elif choice == 3:
-                print("\n--- KONFIRMASI SKALA ---")
+                print("\n" + "=" * 50)
+                print("  KONFIRMASI SKALA")
+                print("=" * 50)
                 display_scales()
                 if self._get_yes_no("Konfirmasi skala ini?", default_yes=True):
                     self.scales = scales
@@ -392,22 +423,31 @@ class InteractiveInput:
     def input_rotation_stage(self):
         """Stage 3: Input rotation per point with CRUD menu"""
         print("\n" + "="*60)
-        print("TAHAP 3: ROTASI PER TITIK")
+        print("  TAHAP 3: ROTASI PER TITIK")
         print("="*60)
-        print("Atur rotasi objek di setiap titik.")
-        print("MERAH=Depan | HIJAU=Samping | BIRU=Belakang | KUNING=Atas")
+        print("  Atur rotasi objek di setiap titik.")
+        print("  MERAH=Depan | HIJAU=Samping | BIRU=Belakang | KUNING=Atas")
         print("-"*60)
         
         rotations = [{"x": 0.0, "y": 0.0, "z": 0.0} for _ in self.translation_points]
         
         def display_rotations():
-            print("\n" + "=" * 60)
+            print("\n" + "=" * 70)
             print("  DAFTAR ROTASI")
-            print("=" * 60)
+            print("=" * 70)
+            print("  No.  | Label  | Koordinat          | Rotasi (X, Y, Z)")
+            print("  " + "-" * 65)
             for i, (point, rot) in enumerate(zip(self.translation_points, rotations)):
-                label = "START" if i == 0 else ("END" if i == len(self.translation_points)-1 else f"P{i}")
-                print(f"  {i+1}. {label}: ({point[0]:.0f},{point[1]:.0f},{point[2]:.0f}) - X:{rot['x']:.0f}° Y:{rot['y']:.0f}° Z:{rot['z']:.0f}°")
-            print("=" * 60)
+                if i == 0:
+                    label = "START"
+                elif i == len(self.translation_points) - 1:
+                    label = "END"
+                else:
+                    label = f"P{i}"
+                coord = f"({point[0]:.0f}, {point[1]:.0f}, {point[2]:.0f})"
+                rot_str = f"({rot['x']:.0f}, {rot['y']:.0f}, {rot['z']:.0f})"
+                print(f"  {i+1:3}.  | {label:6} | {coord:18} | {rot_str}")
+            print("=" * 70)
         
         while True:
             display_rotations()
@@ -416,18 +456,19 @@ class InteractiveInput:
                 idx = len(rotations) // 2
                 point = self.translation_points[idx]
                 rot = rotations[idx]
-                self.visualizer.show_rotation_at_position(point, rot['x'], rot['y'], rot['z'], f"P{idx}")
+                label = "START" if idx == 0 else ("END" if idx == len(rotations)-1 else f"P{idx}")
+                self.visualizer.show_rotation_at_position(point, rot['x'], rot['y'], rot['z'], label)
             
             self._display_menu(["Edit Rotasi Titik", "Set Semua Sama", "Konfirmasi"], default=3)
             
-            choice = self._get_int_input("Pilih opsi [Enter=3]: ", 1, 3, default=3)
+            choice = self._get_int_input("Pilih opsi: ", 1, 3, default=3)
             if choice == -1:
                 choice = 3
             
             if choice == 1:
                 print("\n--- EDIT ROTASI ---")
                 display_rotations()
-                idx = self._get_int_input(f"Pilih nomor titik (1-{len(rotations)}) [Enter=batal]: ", 1, len(rotations))
+                idx = self._get_int_input(f"Pilih nomor titik (1-{len(rotations)}), Enter=batal: ", 1, len(rotations))
                 if idx == -1:
                     print("Dibatalkan.")
                     continue
@@ -435,13 +476,15 @@ class InteractiveInput:
                 idx -= 1
                 point = self.translation_points[idx]
                 old_rot = rotations[idx]
+                label = "START" if idx == 0 else ("END" if idx == len(rotations)-1 else f"P{idx}")
                 
-                print(f"Rotasi saat ini: X={old_rot['x']}° Y={old_rot['y']}° Z={old_rot['z']}°")
+                print(f"\n  Mengedit rotasi {label}")
+                print(f"  Rotasi saat ini: X={old_rot['x']}°, Y={old_rot['y']}°, Z={old_rot['z']}°")
                 new_rot = self._input_single_rotation(old_rot['x'], old_rot['y'], old_rot['z'])
                 
-                self.visualizer.show_rotation_at_position(point, new_rot['x'], new_rot['y'], new_rot['z'], f"P{idx}")
+                self.visualizer.show_rotation_at_position(point, new_rot['x'], new_rot['y'], new_rot['z'], label)
                 
-                if self._get_yes_no(f"Konfirmasi rotasi X={new_rot['x']}° Y={new_rot['y']}° Z={new_rot['z']}°?", default_yes=True):
+                if self._get_yes_no(f"Konfirmasi rotasi ({new_rot['x']}°, {new_rot['y']}°, {new_rot['z']}°)?", default_yes=True):
                     rotations[idx] = new_rot
                     print("Rotasi diupdate!")
                 else:
@@ -451,14 +494,16 @@ class InteractiveInput:
                 print("\n--- SET SEMUA ROTASI SAMA ---")
                 new_rot = self._input_single_rotation()
                 
-                if self._get_yes_no(f"Set semua rotasi ke X={new_rot['x']}° Y={new_rot['y']}° Z={new_rot['z']}°?", default_yes=True):
+                if self._get_yes_no(f"Set semua rotasi ke ({new_rot['x']}°, {new_rot['y']}°, {new_rot['z']}°)?", default_yes=True):
                     rotations = [new_rot.copy() for _ in self.translation_points]
                     print("Semua rotasi diupdate!")
                 else:
                     print("Dibatalkan.")
             
             elif choice == 3:
-                print("\n--- KONFIRMASI ROTASI ---")
+                print("\n" + "=" * 50)
+                print("  KONFIRMASI ROTASI")
+                print("=" * 50)
                 display_rotations()
                 if self._get_yes_no("Konfirmasi rotasi ini?", default_yes=True):
                     self.rotations = rotations
@@ -475,16 +520,15 @@ class InteractiveInput:
     def run(self) -> ConfigManager:
         """Run the complete interactive input process"""
         print("\n" + "="*70)
-        print(" "*10 + "ROCKET ANIMATION CONFIGURATOR - INTERACTIVE")
+        print(" "*15 + "ROCKET ANIMATION CONFIGURATOR")
         print("="*70)
-        print("\nProgram ini akan memandu Anda mengatur animasi roket.")
-        print("Setiap tahap menampilkan visualisasi REAL-TIME di Matplotlib.")
-        print("\nFitur:")
-        print("  - 2 Tampilan: Scene (kiri) + POV Kamera (kanan)")
-        print("  - Kamera berada DI LUAR grid")
-        print("  - Atur posisi & rotasi kamera")
-        print("  - Tekan ENTER untuk nilai default")
-        print("\n[!] Pastikan jendela Matplotlib terlihat untuk feedback visual!")
+        print("\n  Program ini akan memandu Anda mengatur animasi roket.")
+        print("  Visualisasi REAL-TIME ditampilkan di Matplotlib.")
+        print("\n  Tampilan:")
+        print("    - KIRI  : Scene 3D (tampilan keseluruhan)")
+        print("    - KANAN : Sudut Pandang Kamera 2D (apa yang kamera lihat)")
+        print("\n  Tips: Tekan ENTER untuk nilai default")
+        print("\n" + "="*70)
         
         if not self.input_camera_stage():
             self.visualizer.close()
@@ -513,10 +557,10 @@ class InteractiveInput:
         self.config.save()
         
         print("\n" + "="*70)
-        print("KONFIGURASI SELESAI!")
+        print("  KONFIGURASI SELESAI!")
         print("="*70)
-        print("\nSemua pengaturan telah disimpan.")
-        print("Memulai proses render...")
+        print("\n  Semua pengaturan telah disimpan.")
+        print("  Memulai proses render...")
         
         self.visualizer.close()
         return self.config
