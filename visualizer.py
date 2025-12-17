@@ -41,7 +41,7 @@ class Visualizer:
             ax.plot([i, i], [-limit, limit], [0, 0], 'k-', alpha=0.1, linewidth=0.5)
             ax.plot([-limit, limit], [i, i], [0, 0], 'k-', alpha=0.1, linewidth=0.5)
     
-    def _draw_camera_indicator(self, ax, limit=50):
+    def _draw_camera_indicator(self, ax, limit=50, target_position=None):
         """Draw camera direction indicator showing where camera is viewing from"""
         elev = ax.elev if hasattr(ax, 'elev') else 30
         azim = ax.azim if hasattr(ax, 'azim') else -60
@@ -49,29 +49,42 @@ class Visualizer:
         elev_rad = np.radians(elev)
         azim_rad = np.radians(azim)
         
-        distance = limit * 0.8
+        distance = limit * 1.8
         cam_x = distance * np.cos(elev_rad) * np.cos(azim_rad)
         cam_y = distance * np.cos(elev_rad) * np.sin(azim_rad)
         cam_z = distance * np.sin(elev_rad)
         
-        arrow_len = limit * 0.3
-        dir_x = -cam_x / distance * arrow_len
-        dir_y = -cam_y / distance * arrow_len
-        dir_z = -cam_z / distance * arrow_len
+        if target_position is not None:
+            cam_x += target_position[0]
+            cam_y += target_position[1]
+            cam_z += target_position[2]
+        
+        target = target_position if target_position else [0, 0, 0]
+        dir_x = target[0] - cam_x
+        dir_y = target[1] - cam_y
+        dir_z = target[2] - cam_z
+        dir_len = np.sqrt(dir_x**2 + dir_y**2 + dir_z**2)
+        arrow_len = limit * 0.4
+        dir_x = dir_x / dir_len * arrow_len
+        dir_y = dir_y / dir_len * arrow_len
+        dir_z = dir_z / dir_len * arrow_len
         
         ax.quiver(cam_x, cam_y, cam_z, dir_x, dir_y, dir_z,
-                  color='purple', arrow_length_ratio=0.3, linewidth=3, alpha=0.9)
+                  color='purple', arrow_length_ratio=0.25, linewidth=4, alpha=0.95)
         
         u = np.linspace(0, 2 * np.pi, 20)
         v = np.linspace(0, np.pi, 15)
-        r = limit * 0.08
+        r = limit * 0.06
         sphere_x = cam_x + r * np.outer(np.cos(u), np.sin(v))
         sphere_y = cam_y + r * np.outer(np.sin(u), np.sin(v))
         sphere_z = cam_z + r * np.outer(np.ones(np.size(u)), np.cos(v))
-        ax.plot_surface(sphere_x, sphere_y, sphere_z, color='purple', alpha=0.7)
+        ax.plot_surface(sphere_x, sphere_y, sphere_z, color='purple', alpha=0.85)
         
-        ax.text(cam_x, cam_y, cam_z + r * 2, 'CAM', fontsize=10, fontweight='bold', 
+        ax.text(cam_x, cam_y, cam_z + r * 3, 'KAMERA', fontsize=9, fontweight='bold', 
                 color='purple', ha='center')
+        
+        self._camera_position = (cam_x, cam_y, cam_z)
+        self._camera_target = target
         
         return f"Elev:{elev:.0f}° Azim:{azim:.0f}°"
     
