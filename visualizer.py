@@ -41,6 +41,40 @@ class Visualizer:
             ax.plot([i, i], [-limit, limit], [0, 0], 'k-', alpha=0.1, linewidth=0.5)
             ax.plot([-limit, limit], [i, i], [0, 0], 'k-', alpha=0.1, linewidth=0.5)
     
+    def _draw_camera_indicator(self, ax, limit=50):
+        """Draw camera direction indicator showing where camera is viewing from"""
+        elev = ax.elev if hasattr(ax, 'elev') else 30
+        azim = ax.azim if hasattr(ax, 'azim') else -60
+        
+        elev_rad = np.radians(elev)
+        azim_rad = np.radians(azim)
+        
+        distance = limit * 0.8
+        cam_x = distance * np.cos(elev_rad) * np.cos(azim_rad)
+        cam_y = distance * np.cos(elev_rad) * np.sin(azim_rad)
+        cam_z = distance * np.sin(elev_rad)
+        
+        arrow_len = limit * 0.3
+        dir_x = -cam_x / distance * arrow_len
+        dir_y = -cam_y / distance * arrow_len
+        dir_z = -cam_z / distance * arrow_len
+        
+        ax.quiver(cam_x, cam_y, cam_z, dir_x, dir_y, dir_z,
+                  color='purple', arrow_length_ratio=0.3, linewidth=3, alpha=0.9)
+        
+        u = np.linspace(0, 2 * np.pi, 20)
+        v = np.linspace(0, np.pi, 15)
+        r = limit * 0.08
+        sphere_x = cam_x + r * np.outer(np.cos(u), np.sin(v))
+        sphere_y = cam_y + r * np.outer(np.sin(u), np.sin(v))
+        sphere_z = cam_z + r * np.outer(np.ones(np.size(u)), np.cos(v))
+        ax.plot_surface(sphere_x, sphere_y, sphere_z, color='purple', alpha=0.7)
+        
+        ax.text(cam_x, cam_y, cam_z + r * 2, 'CAM', fontsize=10, fontweight='bold', 
+                color='purple', ha='center')
+        
+        return f"Elev:{elev:.0f}° Azim:{azim:.0f}°"
+    
     def _draw_orientation_sphere(self, ax, position: List[float], radius: float = 5):
         """Draw a colored sphere showing orientation at position"""
         u = np.linspace(0, 2 * np.pi, 30)
@@ -115,9 +149,11 @@ class Visualizer:
                             [last_point[2], current_point[2]], 
                             'orange', linewidth=2, linestyle='--', alpha=0.7)
         
+        cam_info = self._draw_camera_indicator(self.ax, int(max_coord))
+        
         title = 'JALUR TRANSLASI\n'
         title += 'Gunakan GRID untuk mengukur koordinat\n'
-        title += 'MERAH=Depan | HIJAU=Samping | BIRU=Belakang | KUNING=Atas'
+        title += f'KAMERA: {cam_info} | UNGU=Posisi Kamera'
         self.ax.set_title(title, fontsize=12, fontweight='bold')
         self.ax.legend(loc='upper right')
         
@@ -163,10 +199,91 @@ class Visualizer:
         max_range = max(np.abs(position).max() + radius * 2, 30)
         self._add_grid(self.ax, int(max_range))
         
+        cam_info = self._draw_camera_indicator(self.ax, int(max_range))
+        
         title = f'PREVIEW SKALA: {scale:.2f}x\n'
         title += f'Posisi: ({position[0]:.0f}, {position[1]:.0f}, {position[2]:.0f})\n'
-        title += 'MERAH=Depan | HIJAU=Samping | BIRU=Belakang | KUNING=Atas'
+        title += f'KAMERA: {cam_info} | UNGU=Posisi Kamera'
         self.ax.set_title(title, fontsize=12, fontweight='bold')
+        
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+    
+    def show_rotation_at_position(self, position: List[float], rot_x: float, rot_y: float, rot_z: float, point_label: str = ""):
+        """Visualize rotation at a specific position with colored sphere"""
+        self._ensure_figure()
+        
+        def rotation_matrix(rx, ry, rz):
+            rx_rad, ry_rad, rz_rad = np.radians([rx, ry, rz])
+            Rx = np.array([[1, 0, 0],
+                          [0, np.cos(rx_rad), -np.sin(rx_rad)],
+                          [0, np.sin(rx_rad), np.cos(rx_rad)]])
+            Ry = np.array([[np.cos(ry_rad), 0, np.sin(ry_rad)],
+                          [0, 1, 0],
+                          [-np.sin(ry_rad), 0, np.cos(ry_rad)]])
+            Rz = np.array([[np.cos(rz_rad), -np.sin(rz_rad), 0],
+                          [np.sin(rz_rad), np.cos(rz_rad), 0],
+                          [0, 0, 1]])
+            return Rz @ Ry @ Rx
+        
+        R = rotation_matrix(rot_x, rot_y, rot_z)
+        
+        u = np.linspace(0, 2 * np.pi, 40)
+        v = np.linspace(0, np.pi, 30)
+        radius = 8
+        x_sphere = radius * np.outer(np.cos(u), np.sin(v))
+        y_sphere = radius * np.outer(np.sin(u), np.sin(v))
+        z_sphere = radius * np.outer(np.ones(np.size(u)), np.cos(v))
+        
+        points_flat = np.stack([x_sphere.flatten(), y_sphere.flatten(), z_sphere.flatten()])
+        rotated_points = R @ points_flat
+        x_rot = position[0] + rotated_points[0].reshape(x_sphere.shape)
+        y_rot = position[1] + rotated_points[1].reshape(y_sphere.shape)
+        z_rot = position[2] + rotated_points[2].reshape(z_sphere.shape)
+        
+        colors = np.zeros(x_sphere.shape + (4,))
+        for i in range(len(u)):
+            angle = u[i]
+            if -np.pi/4 <= angle <= np.pi/4:
+                colors[i, :] = [0.95, 0.2, 0.2, 0.95]
+            elif np.pi/4 < angle <= 3*np.pi/4:
+                colors[i, :] = [0.2, 0.85, 0.2, 0.95]
+            elif -3*np.pi/4 <= angle < -np.pi/4:
+                colors[i, :] = [0.3, 0.7, 0.3, 0.95]
+            else:
+                colors[i, :] = [0.2, 0.2, 0.95, 0.95]
+        
+        for j in range(len(v)):
+            if v[j] < np.pi/6:
+                colors[:, j] = [1.0, 0.9, 0.0, 0.95]
+        
+        self.ax.plot_surface(x_rot, y_rot, z_rot, facecolors=colors, shade=True)
+        
+        arrow_length = 12
+        x_end = R @ np.array([arrow_length, 0, 0])
+        self.ax.quiver(position[0], position[1], position[2], x_end[0], x_end[1], x_end[2], 
+                      color='red', arrow_length_ratio=0.15, linewidth=3)
+        
+        y_end = R @ np.array([0, arrow_length, 0])
+        self.ax.quiver(position[0], position[1], position[2], y_end[0], y_end[1], y_end[2], 
+                      color='green', arrow_length_ratio=0.15, linewidth=3)
+        
+        z_end = R @ np.array([0, 0, arrow_length])
+        self.ax.quiver(position[0], position[1], position[2], z_end[0], z_end[1], z_end[2], 
+                      color='blue', arrow_length_ratio=0.15, linewidth=3)
+        
+        self.ax.scatter([position[0]], [position[1]], [position[2]], 
+                       c='black', s=100, marker='x', linewidths=2)
+        
+        max_range = max(np.abs(position).max() + radius * 2 + arrow_length, 30)
+        self._add_grid(self.ax, int(max_range))
+        
+        cam_info = self._draw_camera_indicator(self.ax, int(max_range))
+        
+        title = f'PREVIEW ROTASI - {point_label}\n'
+        title += f'Posisi: ({position[0]:.0f}, {position[1]:.0f}, {position[2]:.0f})\n'
+        title += f'X:{rot_x}° Y:{rot_y}° Z:{rot_z}° | KAMERA: {cam_info}'
+        self.ax.set_title(title, fontsize=11, fontweight='bold')
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -240,9 +357,11 @@ class Visualizer:
         
         self._add_grid(self.ax, 20)
         
+        cam_info = self._draw_camera_indicator(self.ax, 20)
+        
         title = f'PREVIEW ROTASI\n'
         title += f'X(Pitch): {rot_x}° | Y(Yaw): {rot_y}° | Z(Roll): {rot_z}°\n'
-        title += 'MERAH=Depan | HIJAU=Samping | BIRU=Belakang | KUNING=Atas'
+        title += f'KAMERA: {cam_info} | UNGU=Posisi Kamera'
         self.ax.set_title(title, fontsize=12, fontweight='bold')
         self.ax.legend(loc='upper right')
         

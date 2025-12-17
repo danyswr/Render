@@ -182,57 +182,67 @@ class InteractiveInput:
         return True
     
     def input_rotation_stage(self):
-        """Stage 3: Input rotation with sphere visualization"""
+        """Stage 3: Input rotation per point with sphere visualization"""
         print("\n" + "="*60)
-        print("TAHAP 3: ROTASI")
+        print("TAHAP 3: ROTASI PER TITIK")
         print("="*60)
-        print("Atur rotasi objek.")
+        print("Atur rotasi objek di setiap titik (seperti skala).")
         print("Lihat sphere di matplotlib untuk memahami orientasi:")
         print("  MERAH = Depan")
         print("  HIJAU = Samping")
         print("  BIRU  = Belakang")
         print("  KUNING = Atas")
         print("Panah menunjukkan sumbu X (merah), Y (hijau), Z (biru)")
+        print("UNGU = Posisi Kamera (dari mana kamera melihat object)")
         print("-"*60)
         
-        rot_x, rot_y, rot_z = 0.0, 0.0, 0.0
+        rotations = []
         
-        print("\n[Matplotlib: Menampilkan sphere dengan rotasi awal...]")
-        self.visualizer.show_rotation_preview(rot_x, rot_y, rot_z)
-        
-        while True:
-            print("\n--- INPUT ROTASI (dalam derajat) ---")
+        for i, point in enumerate(self.translation_points):
+            label = "START" if i == 0 else ("END" if i == len(self.translation_points)-1 else f"P{i}")
+            print(f"\n--- Rotasi Titik {label}: ({point[0]:.1f}, {point[1]:.1f}, {point[2]:.1f}) ---")
             
-            print("Rotasi X (Pitch, default 0): ", end="", flush=True)
-            rot_x = self._get_float_input("", 0.0)
-            self.visualizer.show_rotation_preview(rot_x, rot_y, rot_z)
-            print(f"X = {rot_x}°")
+            rot_x, rot_y, rot_z = 0.0, 0.0, 0.0
             
-            print("Rotasi Y (Yaw, default 0): ", end="", flush=True)
-            rot_y = self._get_float_input("", 0.0)
-            self.visualizer.show_rotation_preview(rot_x, rot_y, rot_z)
-            print(f"Y = {rot_y}°")
+            print("\n[Matplotlib: Menampilkan sphere dengan rotasi awal...]")
+            self.visualizer.show_rotation_at_position(point, rot_x, rot_y, rot_z, label)
             
-            print("Rotasi Z (Roll, default 0): ", end="", flush=True)
-            rot_z = self._get_float_input("", 0.0)
-            self.visualizer.show_rotation_preview(rot_x, rot_y, rot_z)
-            print(f"Z = {rot_z}°")
-            
-            print(f"\nRotasi: X={rot_x}°, Y={rot_y}°, Z={rot_z}°")
-            if self._get_yes_no("Konfirmasi rotasi ini? (y/n): "):
-                break
-            print("Ulangi input rotasi...")
+            while True:
+                print("\n--- INPUT ROTASI (dalam derajat) ---")
+                
+                print("Rotasi X (Pitch, default 0): ", end="", flush=True)
+                rot_x = self._get_float_input("", 0.0)
+                self.visualizer.show_rotation_at_position(point, rot_x, rot_y, rot_z, label)
+                print(f"X = {rot_x}°")
+                
+                print("Rotasi Y (Yaw, default 0): ", end="", flush=True)
+                rot_y = self._get_float_input("", 0.0)
+                self.visualizer.show_rotation_at_position(point, rot_x, rot_y, rot_z, label)
+                print(f"Y = {rot_y}°")
+                
+                print("Rotasi Z (Roll, default 0): ", end="", flush=True)
+                rot_z = self._get_float_input("", 0.0)
+                self.visualizer.show_rotation_at_position(point, rot_x, rot_y, rot_z, label)
+                print(f"Z = {rot_z}°")
+                
+                print(f"\nRotasi: X={rot_x}°, Y={rot_y}°, Z={rot_z}°")
+                if self._get_yes_no("Konfirmasi rotasi ini? (y/n): "):
+                    rotations.append({"x": rot_x, "y": rot_y, "z": rot_z})
+                    print(f"Rotasi titik {label} dikonfirmasi!")
+                    break
+                print("Ulangi input rotasi...")
         
         loop = self._get_yes_no("\nAktifkan rotasi loop (berputar terus)? (y/n): ")
         
         print("\n" + "-"*60)
-        print("RINGKASAN ROTASI:")
-        print(f"  X (Pitch): {rot_x}°")
-        print(f"  Y (Yaw): {rot_y}°")
-        print(f"  Z (Roll): {rot_z}°")
+        print("RINGKASAN ROTASI PER TITIK:")
+        for i, (point, rot) in enumerate(zip(self.translation_points, rotations)):
+            label = "START" if i == 0 else ("END" if i == len(self.translation_points)-1 else f"P{i}")
+            print(f"  {label}: X={rot['x']}° Y={rot['y']}° Z={rot['z']}°")
         print(f"  Loop: {'Ya' if loop else 'Tidak'}")
         
-        self.rotation = {"x": rot_x, "y": rot_y, "z": rot_z, "loop": loop}
+        self.rotations = rotations
+        self.rotation_loop = loop
         return True
     
     def run(self) -> ConfigManager:
@@ -256,15 +266,10 @@ class InteractiveInput:
             self.visualizer.close()
             return None
         
-        for point, scale in zip(self.translation_points, self.scales):
-            self.config.add_translation_point(point[0], point[1], point[2], scale)
+        for point, scale, rotation in zip(self.translation_points, self.scales, self.rotations):
+            self.config.add_translation_point(point[0], point[1], point[2], scale, rotation)
         
-        self.config.set_rotation(
-            self.rotation["x"], 
-            self.rotation["y"], 
-            self.rotation["z"], 
-            self.rotation["loop"]
-        )
+        self.config.set_rotation_loop(self.rotation_loop)
         
         self.config.save()
         

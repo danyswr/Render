@@ -39,26 +39,35 @@ def render_with_config(config: ConfigManager):
     
     translation_points = config.get_translation_points()
     scales = config.get_scales()
-    rotation = config.get_rotation()
+    rotations = config.get_rotations()
     
     print("\n[4] Rendering frames...")
     
     if len(translation_points) == 0:
         translation_points = [[0, 0, 0]]
         scales = [1.0]
+        rotations = [{"x": 0.0, "y": 0.0, "z": 0.0}]
+    
+    if len(rotations) < len(translation_points):
+        for _ in range(len(translation_points) - len(rotations)):
+            rotations.append({"x": 0.0, "y": 0.0, "z": 0.0})
     
     rendered_images = []
-    for i, (point, scale) in enumerate(zip(translation_points, scales)):
+    for i, (point, scale, rotation) in enumerate(zip(translation_points, scales, rotations)):
+        rot_x = rotation.get('x', 0.0)
+        rot_y = rotation.get('y', 0.0)
+        rot_z = rotation.get('z', 0.0)
+        
         print(f"\n  Frame {i+1}/{len(translation_points)}:")
         print(f"    Position: ({point[0]:.1f}, {point[1]:.1f}, {point[2]:.1f})")
         print(f"    Scale: {scale:.2f}x")
-        print(f"    Rotation: X={rotation['x']}°, Y={rotation['y']}°, Z={rotation['z']}°")
+        print(f"    Rotation: X={rot_x}°, Y={rot_y}°, Z={rot_z}°")
         
         transform = Transform()
         transform.set_rotation_degrees(
-            yaw=rotation['y'], 
-            pitch=rotation['x'], 
-            roll=rotation['z']
+            yaw=rot_y, 
+            pitch=rot_x, 
+            roll=rot_z
         )
         transform.set_translation(tx=point[0], ty=point[1], tz=point[2])
         

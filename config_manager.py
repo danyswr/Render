@@ -14,12 +14,10 @@ class ConfigManager:
         return {
             "translation": {
                 "points": [],
-                "scales": []
+                "scales": [],
+                "rotations": []
             },
             "rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
                 "loop": False
             },
             "camera": {
@@ -28,16 +26,20 @@ class ConfigManager:
             }
         }
     
-    def add_translation_point(self, x: float, y: float, z: float, scale: float = 1.0):
-        """Add translation point with scale"""
+    def add_translation_point(self, x: float, y: float, z: float, scale: float = 1.0, rotation: Dict[str, float] = None):
+        """Add translation point with scale and rotation"""
         self.config["translation"]["points"].append([x, y, z])
         self.config["translation"]["scales"].append(scale)
+        if rotation is None:
+            rotation = {"x": 0.0, "y": 0.0, "z": 0.0}
+        self.config["translation"]["rotations"].append(rotation)
+    
+    def set_rotation_loop(self, loop: bool = False):
+        """Set rotation loop parameter"""
+        self.config["rotation"]["loop"] = loop
     
     def set_rotation(self, x: float, y: float, z: float, loop: bool = False):
-        """Set rotation parameters"""
-        self.config["rotation"]["x"] = x
-        self.config["rotation"]["y"] = y
-        self.config["rotation"]["z"] = z
+        """Set rotation parameters (legacy support)"""
         self.config["rotation"]["loop"] = loop
     
     def save(self):
@@ -49,11 +51,33 @@ class ConfigManager:
         print(f"\n✓ Configuration saved to {config_path}")
     
     def load(self):
-        """Load configuration from file"""
+        """Load configuration from file with backward compatibility"""
         config_path = os.path.join("result", self.config_file)
         if os.path.exists(config_path):
             with open(config_path, 'r') as f:
                 self.config = json.load(f)
+            
+            if "rotations" not in self.config.get("translation", {}):
+                self.config["translation"]["rotations"] = []
+            
+            points = self.config.get("translation", {}).get("points", [])
+            rotations = self.config["translation"]["rotations"]
+            
+            if len(rotations) < len(points):
+                legacy_rotation = self.config.get("rotation", {})
+                rot_x = legacy_rotation.get("x", 0.0)
+                rot_y = legacy_rotation.get("y", 0.0)
+                rot_z = legacy_rotation.get("z", 0.0)
+                
+                for _ in range(len(points) - len(rotations)):
+                    rotations.append({"x": rot_x, "y": rot_y, "z": rot_z})
+            
+            scales = self.config.get("translation", {}).get("scales", [])
+            if len(scales) < len(points):
+                for _ in range(len(points) - len(scales)):
+                    scales.append(1.0)
+                self.config["translation"]["scales"] = scales
+            
             print(f"✓ Configuration loaded from {config_path}")
         return self.config
     
@@ -68,3 +92,7 @@ class ConfigManager:
     def get_rotation(self) -> Dict[str, Any]:
         """Get rotation parameters"""
         return self.config["rotation"]
+    
+    def get_rotations(self) -> List[Dict[str, float]]:
+        """Get rotations for each point"""
+        return self.config["translation"].get("rotations", [])
