@@ -7,59 +7,44 @@ A Python-based 3D rocket renderer using voxel graphics with interactive input. T
 - `main.py` - Entry point with interactive input flow
 - `rocket_model.py` - 3D voxel rocket model builder
 - `transform.py` - 3D transformation handling (rotation + translation)
-- `camera.py` - 3D camera positioning and world-to-camera space conversion
+- `camera.py` - 3D camera with position and rotation support
 - `renderer.py` - Voxel to 2D image rendering with depth buffer
-- `visualizer.py` - Real-time matplotlib visualization with TkAgg backend
-- `interactive_input.py` - Step-by-step interactive input with confirmation
-- `config_manager.py` - Configuration saving/loading (JSON format)
+- `visualizer.py` - Real-time matplotlib dual-view visualization (Scene + Camera POV)
+- `interactive_input.py` - Step-by-step interactive input with confirmation and defaults
+- `config_manager.py` - Configuration saving/loading (JSON format) with camera settings
 
 ## How to Run
 Run the workflow "Rocket 3D Renderer" which executes `python main.py`.
 
 ### Interactive Stages:
+0. **Camera Setup** - Configure camera position and rotation
+   - Position (X, Y, Z) - where camera is located (default: 0, 0, -150)
+   - Rotation (X, Y, Z) - camera orientation in degrees
+   - Camera is positioned OUTSIDE the grid
+   
 1. **Translation Path** - Define waypoints with CRUD menu
    - **Add** new points, **Edit** existing points, **Delete** points
    - Red points connected by lines show the path
    - Grid helps measure coordinates
-   - Purple camera indicator shows camera position (far from object)
-   
+
 2. **Scale per Point** - Set object scale at each position
    - **Edit** scale for individual points
    - **Set All Same** - apply same scale to all points
-   - Colored sphere visualization shows orientation
-   - Camera indicator shows viewing angle
 
 3. **Rotation per Point** - Configure X/Y/Z rotation at each waypoint
    - **Edit** rotation for individual points
    - **Set All Same** - apply same rotation to all points
-   - Colored sphere with axis arrows shows orientation
-   - Option for loop rotation
 
-### Menu System
-Each stage displays a numbered list and menu:
-```
-==========================
-  DAFTAR TITIK
-==========================
-  1. START: (0, 0, 0)
-  2. P1: (10, 10, 10)
-  3. END: (50, 50, 50)
-==========================
-------------------------------
-  OPSI:
-------------------------------
-  1. Tambah Titik
-  2. Edit Titik
-  3. Hapus Titik
-  4. Konfirmasi
-------------------------------
-```
+### Dual Matplotlib View
+During all stages, TWO matplotlib windows are shown:
+- **Left (Scene View)**: 3D scene with grid, objects, and camera indicator
+- **Right (Camera POV)**: What the camera sees from its position/rotation
 
-### Camera Indicator
-All visualization stages show a purple camera indicator:
-- Purple sphere labeled "KAMERA" = camera position (positioned far from object)
-- Arrow = direction camera is looking toward the object
-- Helps users understand the viewing angle for final render
+### Default Values
+All inputs support pressing Enter for default values:
+- Y/n prompts: Enter = Yes (unless marked as y/N)
+- Numeric inputs: Enter = shown default value
+- Menu choices: Enter = default option (marked with [default])
 
 ### Output
 All outputs are saved to `result/` folder:
@@ -72,9 +57,8 @@ All outputs are saved to `result/` folder:
 - matplotlib - Real-time visualization (TkAgg) and image saving (Agg)
 
 ## Recent Changes
-- December 2025: Added camera direction indicator in all visualizations (purple sphere with arrow)
-- December 2025: Changed rotation to per-point system (like scale and translation)
-- December 2025: Added backward compatibility for legacy config files
-- December 2025: Added interactive input with real-time matplotlib visualization
-- December 2025: All outputs now saved to result/ folder
-- December 2025: Configuration persistence with JSON format
+- December 2025: Added dual matplotlib view (Scene + Camera POV)
+- December 2025: Camera now positioned OUTSIDE the grid
+- December 2025: Added camera position and rotation controls
+- December 2025: All inputs have default values (press Enter to skip)
+- December 2025: Camera settings saved in config file
