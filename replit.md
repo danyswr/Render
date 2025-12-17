@@ -20,13 +20,23 @@ Run the workflow "Rocket 3D Renderer" which executes `python main.py`.
 1. **Translation Path** - Define waypoints (start, waypoints, end) with grid visualization
    - Red points connected by lines show the path
    - Grid helps measure coordinates
+   - Purple sphere shows camera position and direction
 2. **Scale per Point** - Set object scale at each position
    - Colored sphere visualization shows orientation (red=front, green=sides, blue=back)
-3. **Rotation** - Configure X/Y/Z rotation with sphere preview
+   - Camera indicator shows viewing angle
+3. **Rotation per Point** - Configure X/Y/Z rotation at each waypoint
    - Colored sphere with axis arrows shows orientation
+   - Each point can have different rotation values
+   - Camera indicator helps understand viewing perspective
    - Option for loop rotation
 
 Each stage requires confirmation before proceeding.
+
+### Camera Indicator (NEW)
+All visualization stages now show a purple camera indicator:
+- Purple sphere = camera position
+- Arrow = direction camera is looking
+- Helps users understand the viewing angle for final render
 
 ### Output
 All outputs are saved to `result/` folder:
@@ -39,6 +49,9 @@ All outputs are saved to `result/` folder:
 - matplotlib - Real-time visualization (TkAgg) and image saving (Agg)
 
 ## Recent Changes
+- December 2025: Added camera direction indicator in all visualizations (purple sphere with arrow)
+- December 2025: Changed rotation to per-point system (like scale and translation)
+- December 2025: Added backward compatibility for legacy config files
 - December 2025: Added interactive input with real-time matplotlib visualization
 - December 2025: All outputs now saved to result/ folder
 - December 2025: Configuration persistence with JSON format
