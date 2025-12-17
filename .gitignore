@@ -1,5 +1,16 @@
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
 .venv/
 env/
 .DS_Store
+.pythonlibs/
+.uv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+rocket_render.jpg
+rocket_display.png

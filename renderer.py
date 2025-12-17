@@ -1,6 +1,8 @@
 """
 Renderer - Kelas untuk rendering voxel ke 2D image
 """
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -91,4 +93,6 @@ class Renderer:
                 plt.title(titles[i])
             plt.axis('off')
         plt.tight_layout()
-        plt.show()
+        plt.savefig('rocket_display.png', dpi=100, bbox_inches='tight')
+        plt.close()
+        print("Rendered image saved to: rocket_display.png")
