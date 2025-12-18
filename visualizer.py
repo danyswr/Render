@@ -141,14 +141,18 @@ class Visualizer:
     
     def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
         """Determine which color of the sphere is visible from camera perspective
-        Look at the surface of the sphere closest to camera and return its color
+        Calculate ray from camera to object, then see which face is visible in object's local space
         """
+        # Check if object is visible to camera
         translated = np.array(world_pos) - cam_pos
         cam_space = R_cam_inv @ translated
-        
         if cam_space[2] <= 0:
             return 'gray'
         
+        # Ray direction from camera to object center (world space)
+        ray_world = translated / np.linalg.norm(translated)
+        
+        # Build object rotation matrix
         rx = np.radians(rotation.get('x', 0))
         ry = np.radians(rotation.get('y', 0))
         rz = np.radians(rotation.get('z', 0))
@@ -158,26 +162,11 @@ class Visualizer:
         Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
         R_obj = Rz @ Ry @ Rx
         
-        R_obj_inv = R_obj.T
+        # Transform ray to object local space
+        ray_local = R_obj.T @ ray_world
         
-        view_dir_cam = -cam_space / np.linalg.norm(cam_space)
-        view_dir_world = R_obj_inv @ view_dir_cam
-        
-        if abs(view_dir_world[2]) >= abs(view_dir_world[0]) and abs(view_dir_world[2]) >= abs(view_dir_world[1]):
-            if view_dir_world[2] > 0:
-                return 'yellow'
-            else:
-                return 'red'
-        elif abs(view_dir_world[0]) >= abs(view_dir_world[1]):
-            if view_dir_world[0] > 0:
-                return 'green'
-            else:
-                return 'blue'
-        else:
-            if view_dir_world[1] > 0:
-                return 'lightgray'
-            else:
-                return 'darkgray'
+        # Determine visible color based on dominant direction in local space
+        return self._get_color_from_direction(ray_local)
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
         """Draw clean 2D camera POV - shows what camera sees with correct colors"""
