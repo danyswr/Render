@@ -56,7 +56,7 @@ class Visualizer:
         
         u = np.linspace(0, 2 * np.pi, 20)
         v = np.linspace(0, np.pi, 15)
-        cam_radius = max(limit * 0.08, 8)
+        cam_radius = max(limit * 0.12, 12)
         sphere_x = cam_x + cam_radius * np.outer(np.cos(u), np.sin(v))
         sphere_y = cam_y + cam_radius * np.outer(np.sin(u), np.sin(v))
         sphere_z = cam_z + cam_radius * np.outer(np.ones(np.size(u)), np.cos(v))
@@ -117,7 +117,9 @@ class Visualizer:
         return x_2d, y_2d, cam_space, True
     
     def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
-        """Determine which color of the sphere is visible from camera perspective"""
+        """Determine which color of the sphere is visible from camera perspective
+        Colors match 3D sphere: DEPAN=Kuning(+Z), BELAKANG=Merah(-Z), KANAN=Hijau(+X), KIRI=Biru(-X)
+        """
         translated = np.array(world_pos) - cam_pos
         cam_space = R_cam_inv @ translated
         
@@ -135,20 +137,20 @@ class Visualizer:
         Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
         R_obj = Rz @ Ry @ Rx
         
-        front = R_obj @ np.array([1, 0, 0])
-        right = R_obj @ np.array([0, 1, 0])
-        back = R_obj @ np.array([-1, 0, 0])
-        left = R_obj @ np.array([0, -1, 0])
+        front = R_obj @ np.array([0, 0, 1])
+        back = R_obj @ np.array([0, 0, -1])
+        right = R_obj @ np.array([1, 0, 0])
+        left = R_obj @ np.array([-1, 0, 0])
         
         front_cam = R_cam_inv @ front
-        right_cam = R_cam_inv @ right
         back_cam = R_cam_inv @ back
+        right_cam = R_cam_inv @ right
         left_cam = R_cam_inv @ left
         
         dots = {
-            'red': np.dot(front_cam, view_dir),
+            'yellow': np.dot(front_cam, view_dir),
+            'red': np.dot(back_cam, view_dir),
             'green': np.dot(right_cam, view_dir),
-            'yellow': np.dot(back_cam, view_dir),
             'blue': np.dot(left_cam, view_dir)
         }
         
@@ -203,11 +205,6 @@ class Visualizer:
                 ax.annotate(label, (x_2d, y_2d), xytext=(8, 8), 
                            textcoords='offset points', fontsize=9, fontweight='bold')
         
-        origin_x, origin_y, _, visible = self._project_to_2d([0, 0, 0], R_cam_inv, cam_pos)
-        if visible:
-            ax.plot(origin_x, origin_y, 'k+', markersize=12, markeredgewidth=2)
-            ax.annotate('O', (origin_x, origin_y), xytext=(-12, -12), 
-                       textcoords='offset points', fontsize=9, color='gray')
         
         cam_rot = self.camera_rotation
         title = f'Sudut Pandang Kamera (2D)\n'
@@ -216,13 +213,16 @@ class Visualizer:
         ax.set_title(title, fontsize=10)
     
     def _draw_oriented_sphere(self, ax, position: List[float], radius: float, rotation: Dict):
-        """Draw colored sphere showing orientation - DEPAN(merah) BELAKANG(kuning) KIRI(biru) KANAN(hijau)"""
-        u = np.linspace(0, 2 * np.pi, 40)
-        v = np.linspace(0, np.pi, 30)
+        """Draw colored sphere showing orientation
+        DEPAN(+Z)=Kuning, BELAKANG(-Z)=Merah, KANAN(+X)=Hijau, KIRI(-X)=Biru
+        Object faces camera (+Z direction) by default so camera sees KUNING (front)
+        """
+        phi = np.linspace(0, 2 * np.pi, 40)
+        theta = np.linspace(0, np.pi, 30)
         
-        x_sphere = radius * np.outer(np.cos(u), np.sin(v))
-        y_sphere = radius * np.outer(np.sin(u), np.sin(v))
-        z_sphere = radius * np.outer(np.ones(np.size(u)), np.cos(v))
+        x_sphere = radius * np.outer(np.sin(theta), np.cos(phi)).T
+        y_sphere = radius * np.outer(np.sin(theta), np.sin(phi)).T
+        z_sphere = radius * np.outer(np.cos(theta), np.ones(len(phi))).T
         
         rx = np.radians(rotation.get('x', 0))
         ry = np.radians(rotation.get('y', 0))
@@ -240,16 +240,27 @@ class Visualizer:
         z_rot = position[2] + rotated[2].reshape(z_sphere.shape)
         
         colors = np.zeros(x_sphere.shape + (4,))
-        for i in range(len(u)):
-            angle = u[i]
-            if -np.pi/4 <= angle <= np.pi/4:
-                colors[i, :] = [1.0, 0.2, 0.2, 0.9]
-            elif np.pi/4 < angle <= 3*np.pi/4:
-                colors[i, :] = [0.2, 0.8, 0.2, 0.9]
-            elif -3*np.pi/4 <= angle < -np.pi/4:
-                colors[i, :] = [0.2, 0.2, 1.0, 0.9]
-            else:
-                colors[i, :] = [1.0, 0.9, 0.2, 0.9]
+        for i in range(len(phi)):
+            for j in range(len(theta)):
+                local_x = x_sphere[i, j]
+                local_y = y_sphere[i, j]
+                local_z = z_sphere[i, j]
+                
+                if abs(local_z) >= abs(local_x) and abs(local_z) >= abs(local_y):
+                    if local_z > 0:
+                        colors[i, j] = [1.0, 0.9, 0.2, 0.9]
+                    else:
+                        colors[i, j] = [1.0, 0.2, 0.2, 0.9]
+                elif abs(local_x) >= abs(local_y):
+                    if local_x > 0:
+                        colors[i, j] = [0.2, 0.8, 0.2, 0.9]
+                    else:
+                        colors[i, j] = [0.2, 0.2, 1.0, 0.9]
+                else:
+                    if local_y > 0:
+                        colors[i, j] = [0.8, 0.8, 0.8, 0.9]
+                    else:
+                        colors[i, j] = [0.5, 0.5, 0.5, 0.9]
         
         ax.plot_surface(x_rot, y_rot, z_rot, facecolors=colors, shade=True)
     
@@ -271,7 +282,7 @@ class Visualizer:
             max_coord = 50
         
         limit = int(max_coord)
-        sphere_radius = max(limit * 0.08, 8)
+        sphere_radius = max(limit * 0.12, 12)
         
         self._add_grid_3d(self.ax_scene, limit)
         
@@ -312,7 +323,7 @@ class Visualizer:
         
         self._draw_camera_indicator(self.ax_scene, limit)
         
-        self.ax_scene.set_title('Scene 3D\nMERAH=Depan, HIJAU=Kanan, BIRU=Kiri, KUNING=Belakang', fontsize=10)
+        self.ax_scene.set_title('Scene 3D\nKUNING=Depan, MERAH=Belakang, HIJAU=Kanan, BIRU=Kiri', fontsize=10)
         
         self._draw_camera_pov_2d(self.ax_camera, points + ([current_point] if current_point else []), rotations)
         
@@ -330,7 +341,7 @@ class Visualizer:
         if rotation is None:
             rotation = {"x": 0, "y": 0, "z": 0}
         
-        radius = max(scale * 10, 8)
+        radius = max(scale * 12, 12)
         self._draw_oriented_sphere(self.ax_scene, position, radius, rotation)
         
         max_range = max(np.abs(position).max() + radius * 2, np.abs(self.camera_position).max(), 50)
@@ -354,7 +365,7 @@ class Visualizer:
         rotation = {"x": rot_x, "y": rot_y, "z": rot_z}
         
         max_range = max(np.abs(position).max() + 30, np.abs(self.camera_position).max(), 50)
-        sphere_radius = max(max_range * 0.1, 12)
+        sphere_radius = max(max_range * 0.15, 15)
         
         self._draw_oriented_sphere(self.ax_scene, position, sphere_radius, rotation)
         
@@ -385,7 +396,7 @@ class Visualizer:
         coords_array = np.array(all_coords)
         max_coord = max(np.abs(coords_array).max() + 30, 50)
         limit = int(max_coord)
-        sphere_radius = max(limit * 0.08, 8)
+        sphere_radius = max(limit * 0.12, 12)
         
         self._add_grid_3d(self.ax_scene, limit)
         
@@ -397,7 +408,7 @@ class Visualizer:
         
         self._draw_camera_indicator(self.ax_scene, limit)
         
-        self.ax_scene.set_title('Pengaturan Kamera\nMERAH=Depan, HIJAU=Kanan, BIRU=Kiri, KUNING=Belakang', fontsize=10)
+        self.ax_scene.set_title('Pengaturan Kamera\nKUNING=Depan, MERAH=Belakang, HIJAU=Kanan, BIRU=Kiri', fontsize=10)
         
         self._draw_camera_pov_2d(self.ax_camera, object_positions, rotations)
         

@@ -426,7 +426,7 @@ class InteractiveInput:
         print("  TAHAP 3: ROTASI PER TITIK")
         print("="*60)
         print("  Atur rotasi objek di setiap titik.")
-        print("  MERAH=Depan | HIJAU=Samping | BIRU=Belakang | KUNING=Atas")
+        print("  KUNING=Depan | MERAH=Belakang | HIJAU=Kanan | BIRU=Kiri")
         print("-"*60)
         
         rotations = [{"x": 0.0, "y": 0.0, "z": 0.0} for _ in self.translation_points]
