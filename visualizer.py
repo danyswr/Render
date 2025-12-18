@@ -116,17 +116,38 @@ class Visualizer:
         
         return x_2d, y_2d, cam_space, True
     
+    def _get_dominant_face(self, rotated_point):
+        """Determine which face (color) is dominant for a point on rotated sphere
+        Returns color based on which axis is most significant
+        Uses same logic as _draw_oriented_sphere for consistency
+        """
+        x, y, z = rotated_point
+        
+        if abs(z) >= abs(x) and abs(z) >= abs(y):
+            if z > 0:
+                return 'yellow'
+            else:
+                return 'red'
+        elif abs(x) >= abs(y):
+            if x > 0:
+                return 'green'
+            else:
+                return 'blue'
+        else:
+            if y > 0:
+                return 'lightgray'
+            else:
+                return 'darkgray'
+    
     def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
         """Determine which color of the sphere is visible from camera perspective
-        Colors match 3D sphere: DEPAN=Kuning(+Z), BELAKANG=Merah(-Z), KANAN=Hijau(+X), KIRI=Biru(-X)
+        Uses same logic as sphere rendering for consistency
         """
         translated = np.array(world_pos) - cam_pos
         cam_space = R_cam_inv @ translated
         
         if cam_space[2] <= 0:
             return 'gray'
-        
-        view_dir = -cam_space / np.linalg.norm(cam_space)
         
         rx = np.radians(rotation.get('x', 0))
         ry = np.radians(rotation.get('y', 0))
@@ -137,24 +158,25 @@ class Visualizer:
         Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
         R_obj = Rz @ Ry @ Rx
         
-        front = R_obj @ np.array([0, 0, 1])
-        back = R_obj @ np.array([0, 0, -1])
-        right = R_obj @ np.array([1, 0, 0])
-        left = R_obj @ np.array([-1, 0, 0])
+        view_dir = -cam_space / np.linalg.norm(cam_space)
         
-        front_cam = R_cam_inv @ front
-        back_cam = R_cam_inv @ back
-        right_cam = R_cam_inv @ right
-        left_cam = R_cam_inv @ left
-        
-        dots = {
-            'yellow': np.dot(front_cam, view_dir),
-            'red': np.dot(back_cam, view_dir),
-            'green': np.dot(right_cam, view_dir),
-            'blue': np.dot(left_cam, view_dir)
+        faces = {
+            'yellow': R_obj @ np.array([0, 0, 1]),
+            'red': R_obj @ np.array([0, 0, -1]),
+            'green': R_obj @ np.array([1, 0, 0]),
+            'blue': R_obj @ np.array([-1, 0, 0])
         }
         
-        return max(dots, key=dots.get)
+        face_scores = {}
+        for color, face_normal in faces.items():
+            face_cam = R_cam_inv @ face_normal
+            face_cam = face_cam / np.linalg.norm(face_cam)
+            face_scores[color] = np.dot(face_cam, view_dir)
+        
+        best_color = max(face_scores, key=face_scores.get)
+        if face_scores[best_color] < 0:
+            return 'gray'
+        return best_color
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
         """Draw clean 2D camera POV - shows what camera sees with correct colors"""
