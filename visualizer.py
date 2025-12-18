@@ -166,7 +166,7 @@ class Visualizer:
         ray_local = R_obj.T @ ray_world
         
         # Determine visible color based on dominant direction in local space
-        return self._get_color_from_direction(ray_local)
+        return self._get_dominant_face(ray_local)
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
         """Draw clean 2D camera POV - shows what camera sees with correct colors"""
