@@ -141,19 +141,15 @@ class Visualizer:
     
     def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
         """Determine which color of the sphere is visible from camera perspective
-        Calculate ray FROM object TO camera, then determine which face is visible
+        Sample surface points and find which is closest to camera, matching 3D sphere rendering
         """
-        # Check if object is visible to camera
         world_pos = np.array(world_pos)
         translated = world_pos - cam_pos
         cam_space = R_cam_inv @ translated
         if cam_space[2] <= 0:
             return 'gray'
         
-        # View direction pointing FROM camera TO object (what camera sees)
-        view_dir_world = (world_pos - cam_pos) / np.linalg.norm(world_pos - cam_pos)
-        
-        # Build object rotation matrix
+        # Build object rotation matrix - SAME as _draw_oriented_sphere
         rx = np.radians(rotation.get('x', 0))
         ry = np.radians(rotation.get('y', 0))
         rz = np.radians(rotation.get('z', 0))
@@ -163,12 +159,30 @@ class Visualizer:
         Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
         R_obj = Rz @ Ry @ Rx
         
-        # Transform view direction to object local space
-        view_local = R_obj.T @ view_dir_world
+        # Sample 6 face centers in LOCAL space (before rotation)
+        face_points = {
+            'yellow': np.array([0, 0, 1]),   # +Z front
+            'red': np.array([0, 0, -1]),     # -Z back
+            'green': np.array([1, 0, 0]),    # +X right
+            'blue': np.array([-1, 0, 0]),    # -X left
+            'lightgray': np.array([0, 1, 0]), # +Y top
+            'darkgray': np.array([0, -1, 0])  # -Y bottom
+        }
         
-        # Determine visible color - negate view direction to get surface normal facing camera
-        visible_normal = -view_local
-        return self._get_dominant_face(visible_normal)
+        # Find which face center is closest to camera after rotation
+        min_dist = float('inf')
+        visible_color = 'gray'
+        
+        for color, local_point in face_points.items():
+            # Rotate point to world space
+            world_point = R_obj @ local_point + world_pos
+            # Distance to camera
+            dist = np.linalg.norm(world_point - cam_pos)
+            if dist < min_dist:
+                min_dist = dist
+                visible_color = color
+        
+        return visible_color
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
         """Draw clean 2D camera POV - shows what camera sees with correct colors"""
