@@ -141,7 +141,7 @@ class Visualizer:
     
     def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
         """Determine which color of the sphere is visible from camera perspective
-        Uses same logic as sphere rendering for consistency
+        Look at the surface of the sphere closest to camera and return its color
         """
         translated = np.array(world_pos) - cam_pos
         cam_space = R_cam_inv @ translated
@@ -158,25 +158,26 @@ class Visualizer:
         Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
         R_obj = Rz @ Ry @ Rx
         
-        view_dir = -cam_space / np.linalg.norm(cam_space)
+        R_obj_inv = R_obj.T
         
-        faces = {
-            'yellow': R_obj @ np.array([0, 0, 1]),
-            'red': R_obj @ np.array([0, 0, -1]),
-            'green': R_obj @ np.array([1, 0, 0]),
-            'blue': R_obj @ np.array([-1, 0, 0])
-        }
+        view_dir_cam = -cam_space / np.linalg.norm(cam_space)
+        view_dir_world = R_obj_inv @ view_dir_cam
         
-        face_scores = {}
-        for color, face_normal in faces.items():
-            face_cam = R_cam_inv @ face_normal
-            face_cam = face_cam / np.linalg.norm(face_cam)
-            face_scores[color] = np.dot(face_cam, view_dir)
-        
-        best_color = max(face_scores, key=face_scores.get)
-        if face_scores[best_color] < 0:
-            return 'gray'
-        return best_color
+        if abs(view_dir_world[2]) >= abs(view_dir_world[0]) and abs(view_dir_world[2]) >= abs(view_dir_world[1]):
+            if view_dir_world[2] > 0:
+                return 'yellow'
+            else:
+                return 'red'
+        elif abs(view_dir_world[0]) >= abs(view_dir_world[1]):
+            if view_dir_world[0] > 0:
+                return 'green'
+            else:
+                return 'blue'
+        else:
+            if view_dir_world[1] > 0:
+                return 'lightgray'
+            else:
+                return 'darkgray'
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
         """Draw clean 2D camera POV - shows what camera sees with correct colors"""
