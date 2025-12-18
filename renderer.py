@@ -1,7 +1,9 @@
 """
 Renderer - Kelas untuk rendering voxel ke 2D image
+Supports .npy intermediate files and .jpg final output
 """
 import numpy as np
+import os
 
 
 class Renderer:
@@ -16,12 +18,12 @@ class Renderer:
     
     def render(self, voxel_data, camera, transform, centroid):
         """
-        Render voxel dengan transformasi
+        Render voxel dengan transformasi (termasuk scale)
         
         Args:
             voxel_data: numpy array voxel rocket
             camera: Camera object
-            transform: Transform object
+            transform: Transform object (with scale support)
             centroid: (cx, cy, cz) centroid rocket
         
         Returns:
@@ -44,7 +46,7 @@ class Renderer:
                     if np.sum(voxel_data[i, j, k]) <= self.threshold:
                         continue
                     
-                    # 1. Transform point (rotation + translation)
+                    # 1. Transform point (scale + rotation + translation)
                     world_x, world_y, world_z = transform.transform_point(
                         j, i, k, centroid_x, centroid_y, centroid_z
                     )
@@ -72,9 +74,27 @@ class Renderer:
         
         return pixel
     
+    def save_npy(self, pixel, filename):
+        """Simpan frame sebagai .npy file"""
+        os.makedirs("result/npy_frames", exist_ok=True)
+        filepath = os.path.join("result/npy_frames", filename)
+        np.save(filepath, pixel)
+        return filepath
+    
+    def npy_to_jpg(self, npy_path, jpg_filename):
+        """Convert .npy file ke .jpg"""
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib import pyplot as plt
+        
+        pixel = np.load(npy_path)
+        os.makedirs("result/jpg_frames", exist_ok=True)
+        filepath = os.path.join("result/jpg_frames", jpg_filename)
+        plt.imsave(filepath, pixel)
+        return filepath
+    
     def save_image(self, pixel, filename):
         """Simpan image ke file in result folder"""
-        import os
         import matplotlib
         matplotlib.use('Agg')
         from matplotlib import pyplot as plt
@@ -85,7 +105,6 @@ class Renderer:
     
     def display_images(self, images, titles=None):
         """Display multiple images"""
-        import os
         import matplotlib
         matplotlib.use('Agg')
         from matplotlib import pyplot as plt

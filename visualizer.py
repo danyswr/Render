@@ -116,38 +116,11 @@ class Visualizer:
         
         return x_2d, y_2d, cam_space, True
     
-    def _get_dominant_face(self, rotated_point):
-        """Determine which face (color) is dominant for a point on rotated sphere
-        Returns color based on which axis is most significant
-        Uses same logic as _draw_oriented_sphere for consistency
-        """
-        x, y, z = rotated_point
-        
-        if abs(z) >= abs(x) and abs(z) >= abs(y):
-            if z > 0:
-                return 'yellow'
-            else:
-                return 'red'
-        elif abs(x) >= abs(y):
-            if x > 0:
-                return 'green'
-            else:
-                return 'blue'
-        else:
-            if y > 0:
-                return 'lightgray'
-            else:
-                return 'darkgray'
-    
     def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
         """Determine which color of the sphere is visible from camera perspective
-        Sample surface points and find which is closest to camera, matching 3D sphere rendering
+        Must match _draw_oriented_sphere color assignment exactly
         """
         world_pos = np.array(world_pos)
-        translated = world_pos - cam_pos
-        cam_space = R_cam_inv @ translated
-        if cam_space[2] <= 0:
-            return 'gray'
         
         # Build object rotation matrix - SAME as _draw_oriented_sphere
         rx = np.radians(rotation.get('x', 0))
@@ -159,30 +132,36 @@ class Visualizer:
         Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
         R_obj = Rz @ Ry @ Rx
         
-        # Sample 6 face centers in LOCAL space (before rotation)
-        face_points = {
-            'yellow': np.array([0, 0, 1]),   # +Z front
-            'red': np.array([0, 0, -1]),     # -Z back
-            'green': np.array([1, 0, 0]),    # +X right
-            'blue': np.array([-1, 0, 0]),    # -X left
-            'lightgray': np.array([0, 1, 0]), # +Y top
-            'darkgray': np.array([0, -1, 0])  # -Y bottom
-        }
+        # Direction from object to camera in world space
+        cam_dir = cam_pos - world_pos
+        cam_dir_norm = np.linalg.norm(cam_dir)
+        if cam_dir_norm < 0.001:
+            return 'gray'
+        cam_dir = cam_dir / cam_dir_norm
         
-        # Find which face center is closest to camera after rotation
-        min_dist = float('inf')
-        visible_color = 'gray'
+        # Transform camera direction to object's local space (inverse rotation)
+        R_obj_inv = R_obj.T
+        local_cam_dir = R_obj_inv @ cam_dir
         
-        for color, local_point in face_points.items():
-            # Rotate point to world space
-            world_point = R_obj @ local_point + world_pos
-            # Distance to camera
-            dist = np.linalg.norm(world_point - cam_pos)
-            if dist < min_dist:
-                min_dist = dist
-                visible_color = color
+        # Now find which face the camera is looking at based on local direction
+        lx, ly, lz = local_cam_dir
         
-        return visible_color
+        # Same logic as _draw_oriented_sphere color assignment
+        if abs(lz) >= abs(lx) and abs(lz) >= abs(ly):
+            if lz > 0:
+                return 'yellow'   # +Z front (camera sees front)
+            else:
+                return 'red'      # -Z back
+        elif abs(lx) >= abs(ly):
+            if lx > 0:
+                return 'green'    # +X right
+            else:
+                return 'blue'     # -X left
+        else:
+            if ly > 0:
+                return 'lightgray'  # +Y top
+            else:
+                return 'darkgray'   # -Y bottom
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
         """Draw clean 2D camera POV - shows what camera sees with correct colors"""
@@ -233,7 +212,6 @@ class Visualizer:
                 ax.annotate(label, (x_2d, y_2d), xytext=(8, 8), 
                            textcoords='offset points', fontsize=9, fontweight='bold')
         
-        
         cam_rot = self.camera_rotation
         title = f'Sudut Pandang Kamera (2D)\n'
         title += f'Pos: ({self.camera_position[0]:.0f}, {self.camera_position[1]:.0f}, {self.camera_position[2]:.0f}) | '
@@ -276,19 +254,19 @@ class Visualizer:
                 
                 if abs(local_z) >= abs(local_x) and abs(local_z) >= abs(local_y):
                     if local_z > 0:
-                        colors[i, j] = [1.0, 0.9, 0.2, 0.9]
+                        colors[i, j] = [1.0, 0.9, 0.2, 0.9]  # yellow +Z
                     else:
-                        colors[i, j] = [1.0, 0.2, 0.2, 0.9]
+                        colors[i, j] = [1.0, 0.2, 0.2, 0.9]  # red -Z
                 elif abs(local_x) >= abs(local_y):
                     if local_x > 0:
-                        colors[i, j] = [0.2, 0.8, 0.2, 0.9]
+                        colors[i, j] = [0.2, 0.8, 0.2, 0.9]  # green +X
                     else:
-                        colors[i, j] = [0.2, 0.2, 1.0, 0.9]
+                        colors[i, j] = [0.2, 0.2, 1.0, 0.9]  # blue -X
                 else:
                     if local_y > 0:
-                        colors[i, j] = [0.8, 0.8, 0.8, 0.9]
+                        colors[i, j] = [0.8, 0.8, 0.8, 0.9]  # lightgray +Y
                     else:
-                        colors[i, j] = [0.5, 0.5, 0.5, 0.9]
+                        colors[i, j] = [0.5, 0.5, 0.5, 0.9]  # darkgray -Y
         
         ax.plot_surface(x_rot, y_rot, z_rot, facecolors=colors, shade=True)
     

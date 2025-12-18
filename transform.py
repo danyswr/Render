@@ -1,5 +1,5 @@
 """
-Transform - Kelas untuk transformasi 3D (Rotation + Translation)
+Transform - Kelas untuk transformasi 3D (Rotation + Translation + Scale)
 """
 import numpy as np
 
@@ -17,6 +17,8 @@ class Transform:
         self.tx = 0.0
         self.ty = 0.0
         self.tz = 0.0
+        
+        self.scale = 1.0
     
     def set_rotation_degrees(self, yaw=0, pitch=0, roll=0):
         """Set rotasi dalam derajat"""
@@ -29,6 +31,10 @@ class Transform:
         self.tx = tx
         self.ty = ty
         self.tz = tz
+    
+    def set_scale(self, scale=1.0):
+        """Set scale factor"""
+        self.scale = scale if scale > 0 else 1.0
     
     def apply_rotation(self, x, y, z):
         """
@@ -61,7 +67,7 @@ class Transform:
     
     def transform_point(self, x, y, z, centroid_x, centroid_y, centroid_z):
         """
-        Transform point: Rotation around centroid → Translation
+        Transform point: Scale → Rotation around centroid → Translation
         Returns: (world_x, world_y, world_z)
         """
         # 1. Relative to centroid
@@ -69,10 +75,15 @@ class Transform:
         y_local = y - centroid_y
         z_local = z - centroid_z
         
-        # 2. Apply rotation
-        x_rot, y_rot, z_rot = self.apply_rotation(x_local, y_local, z_local)
+        # 2. Apply scale
+        x_scaled = x_local * self.scale
+        y_scaled = y_local * self.scale
+        z_scaled = z_local * self.scale
         
-        # 3. Back to world space + translation
+        # 3. Apply rotation
+        x_rot, y_rot, z_rot = self.apply_rotation(x_scaled, y_scaled, z_scaled)
+        
+        # 4. Back to world space + translation
         world_x = centroid_x + x_rot + self.tx
         world_y = centroid_y + y_rot + self.ty
         world_z = centroid_z + z_rot + self.tz

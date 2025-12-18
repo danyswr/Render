@@ -23,6 +23,10 @@ class ConfigManager:
             "camera": {
                 "position": [50, 50, 100],
                 "target": [0, 0, 0]
+            },
+            "render": {
+                "total_frames": 1,
+                "interpolate": False
             }
         }
     
@@ -41,6 +45,17 @@ class ConfigManager:
     def set_rotation(self, x: float, y: float, z: float, loop: bool = False):
         """Set rotation parameters (legacy support)"""
         self.config["rotation"]["loop"] = loop
+    
+    def set_render_settings(self, total_frames: int = 1, interpolate: bool = False):
+        """Set render settings"""
+        self.config["render"] = {
+            "total_frames": max(1, total_frames),
+            "interpolate": interpolate
+        }
+    
+    def get_render_settings(self) -> Dict[str, Any]:
+        """Get render settings"""
+        return self.config.get("render", {"total_frames": 1, "interpolate": False})
     
     def save(self):
         """Save configuration to file"""
@@ -77,6 +92,9 @@ class ConfigManager:
                 for _ in range(len(points) - len(scales)):
                     scales.append(1.0)
                 self.config["translation"]["scales"] = scales
+            
+            if "render" not in self.config:
+                self.config["render"] = {"total_frames": 1, "interpolate": False}
             
             print(f"✓ Configuration loaded from {config_path}")
         return self.config
