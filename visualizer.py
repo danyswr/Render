@@ -141,16 +141,17 @@ class Visualizer:
     
     def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
         """Determine which color of the sphere is visible from camera perspective
-        Calculate ray from camera to object, then see which face is visible in object's local space
+        Calculate ray FROM object TO camera, then determine which face is visible
         """
         # Check if object is visible to camera
-        translated = np.array(world_pos) - cam_pos
+        world_pos = np.array(world_pos)
+        translated = world_pos - cam_pos
         cam_space = R_cam_inv @ translated
         if cam_space[2] <= 0:
             return 'gray'
         
-        # Ray direction from camera to object center (world space)
-        ray_world = translated / np.linalg.norm(translated)
+        # View direction pointing FROM camera TO object (what camera sees)
+        view_dir_world = (world_pos - cam_pos) / np.linalg.norm(world_pos - cam_pos)
         
         # Build object rotation matrix
         rx = np.radians(rotation.get('x', 0))
@@ -162,11 +163,12 @@ class Visualizer:
         Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
         R_obj = Rz @ Ry @ Rx
         
-        # Transform ray to object local space
-        ray_local = R_obj.T @ ray_world
+        # Transform view direction to object local space
+        view_local = R_obj.T @ view_dir_world
         
-        # Determine visible color based on dominant direction in local space
-        return self._get_dominant_face(ray_local)
+        # Determine visible color - negate view direction to get surface normal facing camera
+        visible_normal = -view_local
+        return self._get_dominant_face(visible_normal)
     
     def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
         """Draw clean 2D camera POV - shows what camera sees with correct colors"""
