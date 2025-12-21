@@ -17,12 +17,18 @@ A Python-based 3D rocket renderer using voxel graphics with interactive input. T
 Run the workflow "Rocket 3D Renderer" which executes `python main.py`.
 
 ### Interactive Stages:
-0. **Camera Setup** - Configure camera position and rotation
+0a. **Camera Setup** - Configure initial camera position and rotation
    - Position (X, Y, Z) - where camera is located (default: 0, 0, -150)
-   - Rotation (X, Y, Z) - camera orientation in degrees
+   - Rotation (Pitch, Yaw) - camera orientation in degrees
    - Camera is positioned OUTSIDE the grid
+
+0b. **Camera Translation Path** - Define camera movement waypoints (NEW!)
+   - **Add** new camera points, **Edit** existing points, **Delete** points
+   - Each point has position (X, Y, Z) and rotation (Pitch, Yaw)
+   - Works exactly like object translation but for camera movement
+   - Enables camera to move/translate during animation
    
-1. **Translation Path** - Define waypoints with CRUD menu
+1. **Translation Path** - Define object waypoints with CRUD menu
    - **Add** new points, **Edit** existing points, **Delete** points
    - Red points connected by lines show the path
    - Grid helps measure coordinates
@@ -57,6 +63,8 @@ All outputs are saved to `result/` folder:
 - matplotlib - Real-time visualization (TkAgg) and image saving (Agg)
 
 ## Recent Changes
+- December 2025: Added camera translation path feature (add/edit/delete camera waypoints)
+- December 2025: Camera can now move during animation with multiple position points
 - December 2025: Added dual matplotlib view (Scene + Camera POV)
 - December 2025: Camera now positioned OUTSIDE the grid
 - December 2025: Added camera position and rotation controls

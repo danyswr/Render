@@ -103,6 +103,10 @@ class ConfigManager:
         """Clear all camera animation points"""
         self.config["camera"]["animation_points"] = []
     
+    def clear_object_animation_points(self):
+        """Clear all object animation points"""
+        self.config["object"]["animation_points"] = []
+    
     def get_camera_animation_points(self) -> List[Dict]:
         """Get all camera animation points"""
         return self.config["camera"]["animation_points"]

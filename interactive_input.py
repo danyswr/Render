@@ -692,6 +692,10 @@ class InteractiveInput:
             self.visualizer.close()
             return None
         
+        # Clear existing points before saving to avoid duplicates
+        self.config.clear_object_animation_points()
+        self.config.clear_camera_animation_points()
+        
         # Save to config
         for point, rot in zip(self.translation_points, self.rotations):
             self.config.add_animation_point(
