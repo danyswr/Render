@@ -83,17 +83,21 @@ class Visualizer:
         ax.text(cam_x, cam_y, cam_z + cam_radius + 5, 'KAMERA', fontsize=9, 
                 fontweight='bold', color='purple', ha='center')
     
-    def _draw_rocket_3d(self, ax, position: List[float], rotation: Dict):
-        """Draw rocket model in 3D space with better density"""
+    def _draw_rocket_3d(self, ax, position: List[float], rotation: Dict, quality: str = "fast"):
+        """Draw rocket model in 3D space - fast for preview, full for final"""
         # Get voxel indices
         y_i, x_i, z_i = np.where(np.sum(self.voxel_data, axis=3) > 10)
         
         if len(y_i) == 0:
             return
         
-        # Sample more voxels for better visualization (up to 15000)
+        # Use different sampling based on quality mode
         total_voxels = len(y_i)
-        sample_size = min(total_voxels, 15000)
+        if quality == "fast":
+            sample_size = min(total_voxels, 3000)  # Fast preview: 3000 voxels
+        else:
+            sample_size = min(total_voxels, 15000)  # Final: 15000 voxels
+        
         sample_indices = np.random.choice(total_voxels, size=sample_size, replace=False)
         
         # Collect points and colors for batch scatter
@@ -130,9 +134,9 @@ class Visualizer:
         if len(points_3d) > 0:
             points_array = np.array(points_3d)
             colors_array = np.array(colors)
-            # Use larger point size (s=8) and more opaque (alpha=0.8)
+            point_size = 5 if quality == "fast" else 8
             ax.scatter(points_array[:, 0], points_array[:, 1], points_array[:, 2], 
-                      c=colors_array, cmap='gray', s=8, alpha=0.8, depthshade=True)
+                      c=colors_array, cmap='gray', s=point_size, alpha=0.7, depthshade=True)
     
     def _get_camera_transform(self):
         """Get camera transformation matrix"""
@@ -149,7 +153,7 @@ class Visualizer:
         
         return R_cam_inv, cam_pos
     
-    def _render_rocket_to_camera_view(self, ax, position: List[float], rotation: Dict):
+    def _render_rocket_to_camera_view(self, ax, position: List[float], rotation: Dict, quality: str = "fast"):
         """Render actual rocket as seen from camera"""
         R_cam_inv, cam_pos = self._get_camera_transform()
         
@@ -162,9 +166,12 @@ class Visualizer:
         pixels_2d = {}
         depth_buffer = {}
         
-        # Sample more voxels for better camera view
+        # Sample voxels based on quality
         total_voxels = len(y_i)
-        sample_size = min(total_voxels, 20000)
+        if quality == "fast":
+            sample_size = min(total_voxels, 5000)  # Fast preview: 5000 voxels
+        else:
+            sample_size = min(total_voxels, 20000)  # Final: 20000 voxels
         sample_indices = np.random.choice(total_voxels, size=sample_size, replace=False)
         
         for idx in sample_indices:
@@ -225,8 +232,8 @@ class Visualizer:
         limit = 150
         self._add_grid_3d(self.ax_scene, limit)
         
-        # Draw rocket at origin
-        self._draw_rocket_3d(self.ax_scene, position, rotation)
+        # Draw rocket at origin (fast mode for real-time)
+        self._draw_rocket_3d(self.ax_scene, position, rotation, quality="fast")
         self._draw_camera_indicator(self.ax_scene, limit)
         
         self.ax_scene.set_title('Scene 3D - Object Position & Rotation', fontsize=10)
@@ -240,7 +247,7 @@ class Visualizer:
         self.ax_camera.set_xlabel('X')
         self.ax_camera.set_ylabel('Y')
         
-        self._render_rocket_to_camera_view(self.ax_camera, position, rotation)
+        self._render_rocket_to_camera_view(self.ax_camera, position, rotation, quality="fast")
         
         cam_rot = self.camera_rotation
         cam_pos = self.camera_position
@@ -277,11 +284,11 @@ class Visualizer:
         if rotations is None:
             rotations = [{"x": 0, "y": 0} for _ in range(len(points) + (1 if current_point else 0))]
         
-        # Draw all rockets
+        # Draw all rockets (fast mode for real-time)
         if len(points) > 0:
             for i, point in enumerate(points):
                 rot = rotations[i] if i < len(rotations) else {"x": 0, "y": 0}
-                self._draw_rocket_3d(self.ax_scene, point, rot)
+                self._draw_rocket_3d(self.ax_scene, point, rot, quality="fast")
                 
                 if i == 0:
                     label = "START"
@@ -297,7 +304,7 @@ class Visualizer:
         
         if current_point is not None:
             rot = rotations[len(points)] if len(points) < len(rotations) else {"x": 0, "y": 0}
-            self._draw_rocket_3d(self.ax_scene, current_point, rot)
+            self._draw_rocket_3d(self.ax_scene, current_point, rot, quality="fast")
             self.ax_scene.text(current_point[0]+10, current_point[1]+10, current_point[2]+10, 
                               'NEW', fontsize=10, fontweight='bold', color='orange')
         
@@ -315,7 +322,7 @@ class Visualizer:
         all_display_rots = rotations[:len(all_display_points)]
         
         for i, (point, rot) in enumerate(zip(all_display_points, all_display_rots)):
-            self._render_rocket_to_camera_view(self.ax_camera, point, rot)
+            self._render_rocket_to_camera_view(self.ax_camera, point, rot, quality="fast")
         
         self._draw_camera_indicator(self.ax_scene, limit)
         self.ax_camera.set_title('Camera View - What Kamera Sees', fontsize=9)
