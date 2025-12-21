@@ -1,3 +1,4 @@
+#ini file main.py
 """
 Main - Entry point untuk render rocket dengan input interaktif
 Real-time visualization dengan rocket model asli

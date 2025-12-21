@@ -1,3 +1,4 @@
+#ini file visualizer.py
 import matplotlib
 matplotlib.use('TkAgg')
 import numpy as np
@@ -17,13 +18,21 @@ class Visualizer:
         self.ax_camera = None
         
         self.camera_position = np.array([0.0, 0.0, -150.0])
-        self.camera_rotation = {"x": 0.0, "y": 0.0}
+        self.camera_rotation = {"x": 0.0, "y": 0.0}  # x=pitch, y=yaw
         self.fov = 60
         
         # Build rocket model once
         self.rocket_model = RocketModel(col=320, row=450, length=320)
         self.voxel_data = self.rocket_model.build()
         self.rocket_centroid = self.rocket_model.get_centroid()
+        
+        self._cached_indices = None
+        self._cache_voxel_indices()
+    
+    def _cache_voxel_indices(self):
+        """Cache voxel indices for faster rendering"""
+        y_i, x_i, z_i = np.where(np.sum(self.voxel_data, axis=3) > 10)
+        self._cached_indices = (y_i, x_i, z_i)
     
     def _ensure_figure(self):
         """Ensure dual figure exists: 3D scene (left) + 2D camera POV (right)"""
@@ -53,139 +62,155 @@ class Visualizer:
         ax.set_ylim([-limit, limit])
         ax.set_zlim([-limit, limit])
     
+    def _get_camera_view_direction(self):
+        """Calculate camera view direction based on pitch and yaw rotation"""
+        pitch = np.radians(self.camera_rotation['x'])  # rotation around X axis
+        yaw = np.radians(self.camera_rotation['y'])    # rotation around Y axis
+        
+        # Default forward direction is +Z (into the scene)
+        # Apply yaw (Y-axis rotation) then pitch (X-axis rotation)
+        forward = np.array([0.0, 0.0, 1.0])
+        
+        # Yaw rotation (around Y axis)
+        cos_yaw, sin_yaw = np.cos(yaw), np.sin(yaw)
+        Ry = np.array([
+            [cos_yaw, 0, sin_yaw],
+            [0, 1, 0],
+            [-sin_yaw, 0, cos_yaw]
+        ])
+        
+        # Pitch rotation (around X axis)
+        cos_pitch, sin_pitch = np.cos(pitch), np.sin(pitch)
+        Rx = np.array([
+            [1, 0, 0],
+            [0, cos_pitch, -sin_pitch],
+            [0, sin_pitch, cos_pitch]
+        ])
+        
+        # Apply rotations: Ry @ Rx @ forward
+        forward = Ry @ Rx @ forward
+        
+        # Normalize
+        forward = forward / np.linalg.norm(forward)
+        
+        return forward
+    
     def _draw_camera_indicator(self, ax, rocket_position: List[float], limit=50):
-        """Draw camera as sphere with fixed viewing direction indicator"""
+        """Draw camera as sphere with X marker showing VIEW DIRECTION (based on pitch/yaw)"""
         cam_x, cam_y, cam_z = self.camera_position
         
         # Draw camera sphere
-        u = np.linspace(0, 2 * np.pi, 20)
-        v = np.linspace(0, np.pi, 15)
-        cam_radius = max(limit * 0.12, 12)
+        u = np.linspace(0, 2 * np.pi, 15)
+        v = np.linspace(0, np.pi, 10)
+        cam_radius = max(limit * 0.1, 10)
         sphere_x = cam_x + cam_radius * np.outer(np.cos(u), np.sin(v))
         sphere_y = cam_y + cam_radius * np.outer(np.sin(u), np.sin(v))
         sphere_z = cam_z + cam_radius * np.outer(np.ones(np.size(u)), np.cos(v))
         ax.plot_surface(sphere_x, sphere_y, sphere_z, color='purple', alpha=0.8)
         
-        cam_target = np.array(rocket_position, dtype=float)
-        view_direction = cam_target - self.camera_position
-        view_len = np.linalg.norm(view_direction)
-        if view_len > 0:
-            view_direction = view_direction / view_len
-        else:
-            view_direction = np.array([0, 0, 1])
+        forward = self._get_camera_view_direction()
         
-        arrow_len = max(limit * 0.35, 25)
+        # Draw arrow showing camera view direction
+        arrow_len = max(limit * 0.4, 30)
         ax.quiver(cam_x, cam_y, cam_z, 
-                  view_direction[0]*arrow_len, view_direction[1]*arrow_len, view_direction[2]*arrow_len,
-                  color='cyan', arrow_length_ratio=0.2, linewidth=3.5, alpha=0.9)
+                  forward[0]*arrow_len, forward[1]*arrow_len, forward[2]*arrow_len,
+                  color='cyan', arrow_length_ratio=0.15, linewidth=3)
         
-        x_center = cam_x + view_direction[0] * arrow_len * 0.8
-        y_center = cam_y + view_direction[1] * arrow_len * 0.8
-        z_center = cam_z + view_direction[2] * arrow_len * 0.8
+        # X marker position at end of arrow
+        x_center = np.array([
+            cam_x + forward[0] * (cam_radius + arrow_len * 0.9),
+            cam_y + forward[1] * (cam_radius + arrow_len * 0.9),
+            cam_z + forward[2] * (cam_radius + arrow_len * 0.9)
+        ])
         
-        # Get perpendicular vectors for the X marker
+        # Get perpendicular vectors for X marker (perpendicular to view direction)
         world_up = np.array([0, 1, 0])
-        right = np.cross(view_direction, world_up)
-        right_len = np.linalg.norm(right)
-        if right_len > 0:
-            right = right / right_len
-        else:
-            right = np.array([1, 0, 0])
-        up = np.cross(right, view_direction)
+        if abs(np.dot(forward, world_up)) > 0.9:
+            world_up = np.array([1, 0, 0])
         
-        # Draw X with two diagonal lines
-        x_size = cam_radius * 0.6
+        right = np.cross(forward, world_up)
+        right = right / np.linalg.norm(right)
+        up = np.cross(right, forward)
+        up = up / np.linalg.norm(up)
         
-        # First diagonal
-        p1_start = np.array([x_center, y_center, z_center]) - right * x_size + up * x_size
-        p1_end = np.array([x_center, y_center, z_center]) + right * x_size - up * x_size
+        # Draw X marker with two diagonal lines
+        x_size = cam_radius * 0.8
         
+        # First diagonal (yellow)
+        p1_start = x_center - right * x_size + up * x_size
+        p1_end = x_center + right * x_size - up * x_size
         ax.plot([p1_start[0], p1_end[0]], [p1_start[1], p1_end[1]], [p1_start[2], p1_end[2]], 
-                color='yellow', linewidth=5, alpha=1.0)
+                color='yellow', linewidth=6, alpha=1.0)
         
-        # Second diagonal
-        p2_start = np.array([x_center, y_center, z_center]) + right * x_size + up * x_size
-        p2_end = np.array([x_center, y_center, z_center]) - right * x_size - up * x_size
-        
+        # Second diagonal (yellow)
+        p2_start = x_center + right * x_size + up * x_size
+        p2_end = x_center - right * x_size - up * x_size
         ax.plot([p2_start[0], p2_end[0]], [p2_start[1], p2_end[1]], [p2_start[2], p2_end[2]], 
-                color='yellow', linewidth=5, alpha=1.0)
+                color='yellow', linewidth=6, alpha=1.0)
         
-        ax.text(cam_x, cam_y, cam_z + cam_radius + 8, 
-                f'CAM\n({cam_x:.0f},{cam_y:.0f},{cam_z:.0f})', 
-                fontsize=8, fontweight='bold', color='purple', ha='center')
+        # Camera label with coordinates and rotation info
+        pitch_deg = self.camera_rotation['x']
+        yaw_deg = self.camera_rotation['y']
+        ax.text(cam_x, cam_y - cam_radius - 8, cam_z, 
+                f'CAM\n({cam_x:.0f},{cam_y:.0f},{cam_z:.0f})\nP:{pitch_deg:.0f}° Y:{yaw_deg:.0f}°', 
+                fontsize=7, fontweight='bold', color='purple', ha='center')
     
     def _draw_rocket_3d(self, ax, position: List[float], rotation: Dict, quality: str = "fast"):
-        """Draw rocket model in 3D space - fast for preview, full for final"""
-        # Get voxel indices
-        y_i, x_i, z_i = np.where(np.sum(self.voxel_data, axis=3) > 10)
+        """Draw rocket model in 3D space - improved solid appearance"""
+        y_i, x_i, z_i = self._cached_indices
         
         if len(y_i) == 0:
             return
         
         total_voxels = len(y_i)
-        if quality == "fast":
-            sample_size = min(total_voxels, 2000)  # Reduced from 3000 for speed
-        else:
-            sample_size = min(total_voxels, 15000)
+        sample_size = min(total_voxels, 2500) if quality == "fast" else min(total_voxels, 10000)
         
-        sample_indices = np.random.choice(total_voxels, size=sample_size, replace=False)
+        step = max(1, total_voxels // sample_size)
+        sample_indices = np.arange(0, total_voxels, step)[:sample_size]
         
-        # Collect points and colors for batch scatter
-        points_3d = []
-        colors = []
+        # Vectorized transformation for speed
+        y_samples = y_i[sample_indices]
+        x_samples = x_i[sample_indices]
+        z_samples = z_i[sample_indices]
         
-        for idx in sample_indices:
-            y, x, z = y_i[idx], x_i[idx], z_i[idx]
-            voxel_color = self.voxel_data[y, x, z].astype(float) / 255.0
-            
-            # Transform point
-            x_local = x - self.rocket_centroid[0]
-            y_local = y - self.rocket_centroid[1]
-            z_local = z - self.rocket_centroid[2]
-            
-            # Apply rotation
-            rx = np.radians(rotation.get('x', 0))
-            ry = np.radians(rotation.get('y', 0))
-            
-            Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
-            Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
-            R = Ry @ Rx
-            
-            point = R @ np.array([x_local, y_local, z_local])
-            
-            # Apply translation
-            world_x = position[0] + point[0]
-            world_y = position[1] + point[1]
-            world_z = position[2] + point[2]
-            
-            points_3d.append([world_x, world_y, world_z])
-            colors.append(voxel_color)
+        colors = self.voxel_data[y_samples, x_samples, z_samples].astype(float) / 255.0
         
-        if len(points_3d) > 0:
-            points_array = np.array(points_3d)
-            colors_array = np.array(colors)
-            point_size = 4 if quality == "fast" else 8  # Smaller points for speed
-            ax.scatter(points_array[:, 0], points_array[:, 1], points_array[:, 2], 
-                      c=colors_array, cmap='gray', s=point_size, alpha=0.7, depthshade=True)
+        # Local coordinates
+        x_local = x_samples - self.rocket_centroid[0]
+        y_local = y_samples - self.rocket_centroid[1]
+        z_local = z_samples - self.rocket_centroid[2]
+        
+        # Rotation matrix
+        rx = np.radians(rotation.get('x', 0))
+        ry = np.radians(rotation.get('y', 0))
+        
+        cos_rx, sin_rx = np.cos(rx), np.sin(rx)
+        cos_ry, sin_ry = np.cos(ry), np.sin(ry)
+        
+        # Apply Ry @ Rx rotation
+        x1 = cos_ry * x_local + sin_ry * z_local
+        y1 = sin_rx * (-sin_ry * x_local + cos_ry * z_local) + cos_rx * y_local
+        z1 = cos_rx * (-sin_ry * x_local + cos_ry * z_local) - sin_rx * y_local
+        
+        # World coordinates
+        world_x = position[0] + x1
+        world_y = position[1] + y1
+        world_z = position[2] + z1
+        
+        point_size = 8 if quality == "fast" else 12
+        ax.scatter(world_x, world_y, world_z, c=colors, s=point_size, marker='s', 
+                   alpha=0.9, edgecolors='none', depthshade=True)
     
     def _get_camera_transform(self, rocket_position: List[float]):
-        """Get camera transformation matrix based on rocket position and camera rotation"""
+        """Get camera transformation matrix based on camera rotation"""
         cam_pos = self.camera_position
-        cam_rot = self.camera_rotation
         
-        # Camera looks at the rocket position
-        cam_target = np.array(rocket_position, dtype=float)
+        forward = self._get_camera_view_direction()
         
-        # Calculate forward direction (from camera to rocket)
-        forward = cam_target - cam_pos
-        forward_len = np.linalg.norm(forward)
-        if forward_len > 0:
-            forward = forward / forward_len
-        else:
-            forward = np.array([0, 0, 1])
-        
-        # Calculate right and up vectors
         world_up = np.array([0, 1, 0])
+        if abs(np.dot(forward, world_up)) > 0.9:
+            world_up = np.array([1, 0, 0])
+            
         right = np.cross(forward, world_up)
         right_len = np.linalg.norm(right)
         if right_len > 0:
@@ -194,19 +219,6 @@ class Visualizer:
             right = np.array([1, 0, 0])
         up = np.cross(right, forward)
         
-        # Apply camera rotation to the basis vectors
-        rx_rad = np.radians(cam_rot['x'])
-        ry_rad = np.radians(cam_rot['y'])
-        
-        Rx = np.array([[1,0,0],[0,np.cos(rx_rad),-np.sin(rx_rad)],[0,np.sin(rx_rad),np.cos(rx_rad)]])
-        Ry = np.array([[np.cos(ry_rad),0,np.sin(ry_rad)],[0,1,0],[-np.sin(ry_rad),0,np.cos(ry_rad)]])
-        R_rot = Ry @ Rx
-        
-        forward = R_rot @ forward
-        right = R_rot @ right
-        up = R_rot @ up
-        
-        # Build view matrix
         view_matrix = np.array([
             [right[0], right[1], right[2]],
             [up[0], up[1], up[2]],
@@ -216,57 +228,48 @@ class Visualizer:
         return view_matrix, cam_pos
     
     def _render_rocket_to_camera_view(self, ax, position: List[float], rotation: Dict, quality: str = "fast"):
-        """Render ONLY what camera actually sees - proper projection with depth buffer"""
+        """Render what camera actually sees with depth buffer"""
         view_matrix, cam_pos = self._get_camera_transform(position)
         
-        # Get voxel indices
-        y_i, x_i, z_i = np.where(np.sum(self.voxel_data, axis=3) > 10)
-        
+        y_i, x_i, z_i = self._cached_indices
         if len(y_i) == 0:
             return
         
-        # Projection parameters
         fov_rad = np.radians(self.fov)
         aspect = 4.0 / 3.0
         f = 1.0 / np.tan(fov_rad / 2)
         
-        resolution = 150  # Reduced from 200
+        resolution = 120 if quality == "fast" else 180
         depth_buffer = {}
         pixel_colors = {}
         
         total_voxels = len(y_i)
-        if quality == "fast":
-            sample_size = min(total_voxels, 5000)  # Reduced from 10000
-        else:
-            sample_size = min(total_voxels, 25000)
+        sample_size = min(total_voxels, 6000) if quality == "fast" else min(total_voxels, 20000)
         
         step = max(1, total_voxels // sample_size)
         sample_indices = np.arange(0, total_voxels, step)[:sample_size]
+        
+        # Rotation matrices
+        rx = np.radians(rotation.get('x', 0))
+        ry = np.radians(rotation.get('y', 0))
+        cos_rx, sin_rx = np.cos(rx), np.sin(rx)
+        cos_ry, sin_ry = np.cos(ry), np.sin(ry)
         
         for idx in sample_indices:
             y, x, z = y_i[idx], x_i[idx], z_i[idx]
             color = self.voxel_data[y, x, z] / 255.0
             
-            # Transform voxel to world space
+            # Transform to world space
             x_local = x - self.rocket_centroid[0]
             y_local = y - self.rocket_centroid[1]
             z_local = z - self.rocket_centroid[2]
             
-            rx = np.radians(rotation.get('x', 0))
-            ry = np.radians(rotation.get('y', 0))
+            # Apply rotation
+            x1 = cos_ry * x_local + sin_ry * z_local
+            y1 = sin_rx * (-sin_ry * x_local + cos_ry * z_local) + cos_rx * y_local
+            z1 = cos_rx * (-sin_ry * x_local + cos_ry * z_local) - sin_rx * y_local
             
-            Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
-            Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
-            R_obj = Ry @ Rx
-            
-            point_local = np.array([x_local, y_local, z_local])
-            point_rotated = R_obj @ point_local
-            
-            world_pos = np.array([
-                position[0] + point_rotated[0],
-                position[1] + point_rotated[1],
-                position[2] + point_rotated[2]
-            ])
+            world_pos = np.array([position[0] + x1, position[1] + y1, position[2] + z1])
             
             # Transform to camera space
             relative_pos = world_pos - cam_pos
@@ -274,35 +277,28 @@ class Visualizer:
             
             cam_x, cam_y, cam_z = cam_space[0], cam_space[1], cam_space[2]
             
-            # Cull voxels behind camera
             if cam_z <= 1.0:
                 continue
             
-            # Perspective projection
             x_ndc = (f * cam_x) / (cam_z * aspect)
             y_ndc = (f * cam_y) / cam_z
             
-            # Cull outside frustum
             if abs(x_ndc) > 1.5 or abs(y_ndc) > 1.5:
                 continue
             
-            # Map to pixel with depth test
             px = int(x_ndc * resolution)
             py = int(y_ndc * resolution)
-            
             pixel_key = (px, py)
             
             if pixel_key not in depth_buffer or cam_z < depth_buffer[pixel_key]:
                 depth_buffer[pixel_key] = cam_z
                 pixel_colors[pixel_key] = color
         
-        # Render pixels
         if len(pixel_colors) > 0:
             px_coords = np.array([k[0] for k in pixel_colors.keys()]) / resolution
             py_coords = np.array([k[1] for k in pixel_colors.keys()]) / resolution
             colors = np.array(list(pixel_colors.values()))
-            
-            ax.scatter(px_coords, py_coords, c=colors, s=3, alpha=0.95, edgecolors='none')
+            ax.scatter(px_coords, py_coords, c=colors, s=6, marker='s', alpha=0.95, edgecolors='none')
         else:
             ax.text(0, 0, 'No object in view', ha='center', va='center', 
                    fontsize=12, color='gray', style='italic')
@@ -314,13 +310,11 @@ class Visualizer:
         limit = 150
         self._add_grid_3d(self.ax_scene, limit)
         
-        # Draw rocket
         self._draw_rocket_3d(self.ax_scene, position, rotation, quality="fast")
         self._draw_camera_indicator(self.ax_scene, position, limit)
         
         self.ax_scene.set_title('Scene 3D - Object Position & Rotation', fontsize=10)
         
-        # Camera view
         self.ax_camera.set_facecolor('white')
         self.ax_camera.set_xlim([-2, 2])
         self.ax_camera.set_ylim([-1.5, 1.5])
@@ -338,7 +332,7 @@ class Visualizer:
         title += f'Cam Rot: Pitch={cam_rot["x"]:.0f}° Yaw={cam_rot["y"]:.0f}°'
         self.ax_camera.set_title(title, fontsize=9)
         
-        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
         plt.pause(0.001)
     
@@ -366,7 +360,6 @@ class Visualizer:
         if rotations is None:
             rotations = [{"x": 0, "y": 0} for _ in range(len(points) + (1 if current_point else 0))]
         
-        # Draw all rockets
         if len(points) > 0:
             for i, point in enumerate(points):
                 rot = rotations[i] if i < len(rotations) else {"x": 0, "y": 0}
@@ -394,7 +387,6 @@ class Visualizer:
         self._draw_camera_indicator(self.ax_scene, rocket_pos, limit)
         self.ax_scene.set_title('Scene 3D - Rocket Animation Path', fontsize=10)
         
-        # Camera view
         self.ax_camera.set_facecolor('white')
         self.ax_camera.set_xlim([-2, 2])
         self.ax_camera.set_ylim([-1.5, 1.5])
@@ -411,7 +403,7 @@ class Visualizer:
         
         self.ax_camera.set_title('Camera View - What Camera Actually Sees', fontsize=9)
         
-        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
         plt.pause(0.001)
     

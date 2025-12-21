@@ -1,3 +1,4 @@
+#ini file camera.py
 """
 Camera - Kelas untuk kamera 3D dengan dukungan rotasi
 """

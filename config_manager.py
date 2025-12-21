@@ -1,3 +1,4 @@
+#ini file config_mnanager.py
 import json
 import os
 from typing import List, Dict, Any
@@ -43,21 +44,22 @@ class ConfigManager:
             }
         }
     
-    def add_animation_point(self, translation: List[float], rotation: Dict[str, float]):
+    def add_animation_point(self, position: List[float], pitch: float = 0.0, yaw: float = 0.0):
         """Add animation point with object translation and rotation
         
         Args:
-            translation: [x, y, z] position of object
-            rotation: {"x": pitch, "y": yaw} rotation in degrees (Z removed)
+            position: [x, y, z] position of object
+            pitch: rotation pitch in degrees
+            yaw: rotation yaw in degrees
         """
         self.config["object"]["animation_points"].append({
             "translation": {
-                "position": [float(x) for x in translation],
+                "position": [float(x) for x in position],
                 "description": "Object translation in world space (X, Y, Z)"
             },
             "rotation": {
-                "pitch": float(rotation.get('x', 0.0)),
-                "yaw": float(rotation.get('y', 0.0)),
+                "pitch": float(pitch),
+                "yaw": float(yaw),
                 "description": "Object rotation - Pitch (X-axis), Yaw (Y-axis) in degrees"
             }
         })
@@ -70,6 +72,11 @@ class ConfigManager:
         """Set camera rotation (pitch and yaw only)"""
         self.config["camera"]["rotation"]["pitch"] = float(pitch)
         self.config["camera"]["rotation"]["yaw"] = float(yaw)
+    
+    def set_camera_settings(self, position: List[float], pitch: float = 0.0, yaw: float = 0.0):
+        """Set all camera settings at once"""
+        self.set_camera_translation(position)
+        self.set_camera_rotation(pitch, yaw)
     
     def set_render_settings(self, total_frames: int = 1):
         """Set render settings"""
@@ -95,7 +102,6 @@ class ConfigManager:
         if os.path.exists(config_path):
             with open(config_path, 'r') as f:
                 loaded = json.load(f)
-                # Merge with defaults to ensure compatibility
                 self.config = self._merge_configs(self._load_default_config(), loaded)
             print(f"✓ Configuration loaded from {config_path}")
         return self.config

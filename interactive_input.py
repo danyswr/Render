@@ -1,3 +1,4 @@
+#ini file interactive_input.py
 from typing import List, Dict, Optional
 from visualizer import Visualizer
 from config_manager import ConfigManager
@@ -84,22 +85,36 @@ class InteractiveInput:
                 print(f"  {i+1:3}.  | {label:6} | ({point[0]:7.1f}, {point[1]:7.1f}, {point[2]:7.1f})")
         print("=" * 55)
     
-    def _input_xyz_realtime(self, prompt: str, default_x=0.0, default_y=0.0, default_z=0.0) -> List[float]:
+    def _input_xyz_realtime(self, prompt: str, default_x=0.0, default_y=0.0, default_z=0.0, update_func=None) -> List[float]:
         """Input XYZ with real-time updates"""
         print(f"\n{prompt}")
         print(f"  Default: ({default_x:.1f}, {default_y:.1f}, {default_z:.1f})")
         print("  [Tekan ENTER tanpa angka untuk gunakan default]")
         
+        current = [default_x, default_y, default_z]
+        
         x = self._get_float_input(f"  X [{default_x:.1f}]: ", default_x)
-        self.visualizer.show_translation_with_rocket(self.translation_points, [x, default_y, default_z], self.rotations)
+        current[0] = x
+        if update_func:
+            update_func(current)
+        else:
+            self.visualizer.show_translation_with_rocket(self.translation_points, current, self.rotations)
         
         y = self._get_float_input(f"  Y [{default_y:.1f}]: ", default_y)
-        self.visualizer.show_translation_with_rocket(self.translation_points, [x, y, default_z], self.rotations)
+        current[1] = y
+        if update_func:
+            update_func(current)
+        else:
+            self.visualizer.show_translation_with_rocket(self.translation_points, current, self.rotations)
         
         z = self._get_float_input(f"  Z [{default_z:.1f}]: ", default_z)
-        self.visualizer.show_translation_with_rocket(self.translation_points, [x, y, z], self.rotations)
+        current[2] = z
+        if update_func:
+            update_func(current)
+        else:
+            self.visualizer.show_translation_with_rocket(self.translation_points, current, self.rotations)
         
-        return [x, y, z]
+        return current
     
     def _input_rotation_realtime(self, default_x=0.0, default_y=0.0) -> Dict[str, float]:
         """Input rotation (X, Y only) with real-time updates"""
@@ -107,42 +122,54 @@ class InteractiveInput:
         print("  [Tekan ENTER tanpa angka untuk gunakan default]")
         
         x = self._get_float_input(f"  Pitch/X [{default_x}]: ", default_x)
-        self.visualizer.show_camera_setup_realtime(self.translation_points[-1] if self.translation_points else [0, 0, 0], 
-                                                   {"x": x, "y": default_y})
+        self.visualizer.show_camera_setup_realtime(
+            self.translation_points[-1] if self.translation_points else [0, 0, 0], 
+            {"x": x, "y": default_y}
+        )
         
         y = self._get_float_input(f"  Yaw/Y [{default_y}]: ", default_y)
-        self.visualizer.show_camera_setup_realtime(self.translation_points[-1] if self.translation_points else [0, 0, 0], 
-                                                   {"x": x, "y": y})
+        self.visualizer.show_camera_setup_realtime(
+            self.translation_points[-1] if self.translation_points else [0, 0, 0], 
+            {"x": x, "y": y}
+        )
         
         return {"x": x, "y": y}
     
     def _input_camera_position_realtime(self, default_x=0.0, default_y=0.0, default_z=-150.0) -> List[float]:
         """Input camera position with real-time visualization"""
-        print(f"\n  Default: ({default_x:.1f}, {default_y:.1f}, {default_z:.1f})")
+        print(f"\n  POSISI KAMERA (X, Y, Z)")
+        print(f"  Current: ({default_x:.1f}, {default_y:.1f}, {default_z:.1f})")
         print("  [Tekan ENTER tanpa angka untuk gunakan default]")
         print("  Tips: Z negatif = kamera di belakang objek")
         
+        current = [default_x, default_y, default_z]
+        
+        def update_camera(pos):
+            self.visualizer.set_camera_position(pos[0], pos[1], pos[2])
+            self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
+        
         x = self._get_float_input(f"  X [{default_x:.1f}]: ", default_x)
-        self.visualizer.set_camera_position(x, default_y, default_z)
-        self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
+        current[0] = x
+        update_camera(current)
         
         y = self._get_float_input(f"  Y [{default_y:.1f}]: ", default_y)
-        self.visualizer.set_camera_position(x, y, default_z)
-        self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
+        current[1] = y
+        update_camera(current)
         
         z = self._get_float_input(f"  Z [{default_z:.1f}]: ", default_z)
-        self.visualizer.set_camera_position(x, y, z)
-        self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
+        current[2] = z
+        update_camera(current)
         
-        return [x, y, z]
+        return current
     
     def input_camera_stage(self):
-        """Stage 0: Setup camera with translation and rotation (X,Y only)"""
+        """Stage 0: Setup camera with translation and rotation"""
         print("\n" + "="*60)
         print("  TAHAP 0: PENGATURAN KAMERA")
         print("="*60)
         print("  Atur posisi dan rotasi kamera.")
         print("  Kiri = Scene 3D | Kanan = Sudut Pandang Kamera 2D")
+        print("  Tanda X kuning = arah sorot kamera ke objek")
         print("-"*60)
         
         cam_x, cam_y, cam_z = 0.0, 0.0, -150.0
@@ -153,14 +180,14 @@ class InteractiveInput:
         self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
         
         while True:
-            print("\n" + "=" * 45)
+            print("\n" + "=" * 50)
             print("  KAMERA SAAT INI")
-            print("=" * 45)
-            print(f"  Posisi : ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
+            print("=" * 50)
+            print(f"  Posisi : X={cam_x:.1f}, Y={cam_y:.1f}, Z={cam_z:.1f}")
             print(f"  Rotasi : Pitch={rot_x:.1f}°, Yaw={rot_y:.1f}°")
-            print("=" * 45)
+            print("=" * 50)
             
-            self._display_menu(["Edit Posisi Kamera", "Edit Rotasi Kamera", "Konfirmasi"], default=3)
+            self._display_menu(["Edit Posisi Kamera (X,Y,Z)", "Edit Rotasi Kamera", "Konfirmasi"], default=3)
             
             choice = self._get_int_input("Pilih opsi: ", 1, 3, default=3)
             if choice == -1:
@@ -173,7 +200,7 @@ class InteractiveInput:
                 
                 self.visualizer.set_camera_position(cam_x, cam_y, cam_z)
                 self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": rot_x, "y": rot_y})
-                print("Posisi kamera diupdate!")
+                print(f"Posisi kamera diupdate ke: ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
             
             elif choice == 2:
                 print("\n--- EDIT ROTASI KAMERA (PITCH, YAW) ---")
@@ -183,15 +210,15 @@ class InteractiveInput:
                 
                 self.visualizer.set_camera_rotation(rot_x, rot_y)
                 self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": rot_x, "y": rot_y})
-                print("Rotasi kamera diupdate!")
+                print(f"Rotasi kamera diupdate ke: Pitch={rot_x:.1f}°, Yaw={rot_y:.1f}°")
             
             elif choice == 3:
-                print("\n" + "=" * 45)
+                print("\n" + "=" * 50)
                 print("  KONFIRMASI PENGATURAN KAMERA")
-                print("=" * 45)
-                print(f"  Posisi : ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
+                print("=" * 50)
+                print(f"  Posisi : X={cam_x:.1f}, Y={cam_y:.1f}, Z={cam_z:.1f}")
                 print(f"  Rotasi : Pitch={rot_x:.1f}°, Yaw={rot_y:.1f}°")
-                print("=" * 45)
+                print("=" * 50)
                 
                 if self._get_yes_no("Konfirmasi pengaturan kamera?", default_yes=True):
                     self.camera_position = [cam_x, cam_y, cam_z]
@@ -435,7 +462,7 @@ class InteractiveInput:
         print("\nProgram ini akan memandu Anda mengatur animasi roket.")
         print("Visualisasi REAL-TIME ditampilkan dengan rocket model asli!")
         print("\nTahap:")
-        print("  0. Setup Kamera (posisi & rotasi)")
+        print("  0. Setup Kamera (posisi X,Y,Z & rotasi)")
         print("  1. Jalur Translasi Object")
         print("  2. Rotasi Object (Pitch & Yaw)")
         print("  3. Jumlah Frame")

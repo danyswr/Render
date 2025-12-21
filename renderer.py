@@ -1,6 +1,8 @@
+#ini file renderer.py
 """
 Renderer - Kelas untuk rendering voxel ke 2D image
 Supports .npy intermediate files and .jpg final output
+Fitur Baru: Solid Splatting (mengisi celah antar pixel agar tidak 'bolong-bolong')
 """
 import numpy as np
 import os
@@ -18,7 +20,7 @@ class Renderer:
     
     def render(self, voxel_data, camera, transform, centroid):
         """
-        Render voxel dengan transformasi (termasuk scale)
+        Render voxel dengan transformasi dan Solid Splatting
         
         Args:
             voxel_data: numpy array voxel rocket
@@ -29,48 +31,83 @@ class Renderer:
         Returns:
             pixel: numpy array (height, width, 3) RGB image
         """
+        # Inisialisasi canvas hitam
         pixel = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        # Depth buffer diisi infinity
         depth_buffer = np.full((self.height, self.width), 1e9, dtype=float)
         
-        # Get bounding box
-        y_i, x_i, z_i = np.where(np.sum(voxel_data, axis=3) > self.threshold)
-        if len(y_i) == 0:
-            return pixel
+        # Cari koordinat voxel yang ada isinya (optimasi: tidak loop semua koordinat kosong)
+        # axis=3 karena shape voxel adalah (Y, X, Z, 3[RGB])
+        y_indices, x_indices, z_indices = np.where(np.sum(voxel_data, axis=3) > self.threshold)
         
+        if len(y_indices) == 0:
+            return pixel
+            
         centroid_x, centroid_y, centroid_z = centroid
         
-        # Render setiap voxel
-        for i in range(y_i.min(), y_i.max() + 1):
-            for j in range(x_i.min(), x_i.max() + 1):
-                for k in range(z_i.min(), z_i.max() + 1):
-                    if np.sum(voxel_data[i, j, k]) <= self.threshold:
-                        continue
-                    
-                    # 1. Transform point (scale + rotation + translation)
-                    world_x, world_y, world_z = transform.transform_point(
-                        j, i, k, centroid_x, centroid_y, centroid_z
-                    )
-                    
-                    # 2. World to camera space
-                    cam_x, cam_y, cam_z = camera.world_to_camera(world_x, world_y, world_z)
-                    
-                    # Skip jika di belakang kamera
-                    if cam_z <= 10:
-                        continue
-                    
-                    # 3. Perspective projection
-                    px = self.f * cam_x / cam_z
-                    py = self.f * cam_y / cam_z
-                    
-                    # 4. Convert to screen coordinates
-                    screen_x = int(self.width // 2 + px * self.width // 3)
-                    screen_y = int(self.height // 2 - py * self.height // 3)
-                    
-                    # 5. Draw with depth buffer
-                    if 0 <= screen_x < self.width and 0 <= screen_y < self.height:
-                        if cam_z < depth_buffer[screen_y, screen_x]:
-                            pixel[screen_y, screen_x] = voxel_data[i, j, k]
-                            depth_buffer[screen_y, screen_x] = cam_z
+        # Pre-calculation constant untuk proyeksi
+        # self.width // 3 adalah faktor scaling viewport yang digunakan
+        viewport_scale = self.width // 3
+        proj_const = self.f * viewport_scale
+
+        # Loop hanya pada voxel yang aktif (Jauh lebih cepat dari nested loop range)
+        for i, j, k in zip(y_indices, x_indices, z_indices):
+            
+            # 1. Transform point (scale + rotation + translation)
+            # Koordinat voxel (j=x, i=y, k=z)
+            world_x, world_y, world_z = transform.transform_point(
+                j, i, k, centroid_x, centroid_y, centroid_z
+            )
+            
+            # 2. World to camera space
+            cam_x, cam_y, cam_z = camera.world_to_camera(world_x, world_y, world_z)
+            
+            # Skip jika di belakang kamera (clipping plane dekat)
+            if cam_z <= 5:
+                continue
+            
+            # 3. Perspective projection
+            # Menghitung koordinat layar
+            px = proj_const * cam_x / cam_z
+            py = proj_const * cam_y / cam_z
+            
+            center_x = int(self.width // 2 + px)
+            center_y = int(self.height // 2 - py)
+            
+            # --- FITUR ANTI BULET-BULET (SOLID SPLATTING) ---
+            # Hitung ukuran voxel di layar berdasarkan jarak (cam_z)
+            # Semakin dekat (z kecil), ukuran semakin besar.
+            # Ditambah +1 agar overlap menutup celah.
+            voxel_size_screen = int(proj_const / cam_z) + 1
+            
+            # Clamp ukuran agar tidak terlalu gila saat sangat dekat (max 20px)
+            # dan minimal 1px saat sangat jauh
+            size = max(1, min(voxel_size_screen, 20))
+            
+            # Hitung bounding box untuk splat (kotak) ini
+            half_size = size // 2
+            
+            # Tentukan range pixel yang akan diwarnai untuk 1 voxel ini
+            start_y = max(0, center_y - half_size)
+            end_y   = min(self.height, center_y + half_size + 1)
+            start_x = max(0, center_x - half_size)
+            end_x   = min(self.width, center_x + half_size + 1)
+            
+            # Skip jika di luar layar
+            if start_x >= end_x or start_y >= end_y:
+                continue
+                
+            color = voxel_data[i, j, k]
+            
+            # 4. Draw Rectangle (Splatting) dengan Depth Test
+            # Kita loop area kecil ini (misal 2x2 atau 3x3 pixel)
+            for dy in range(start_y, end_y):
+                for dx in range(start_x, end_x):
+                    # Depth test: hanya gambar jika pixel ini lebih dekat dari yang sudah ada
+                    # (Kita gunakan cam_z yang sama untuk satu voxel rata)
+                    if cam_z < depth_buffer[dy, dx]:
+                        pixel[dy, dx] = color
+                        depth_buffer[dy, dx] = cam_z
         
         return pixel
     
@@ -100,7 +137,8 @@ class Renderer:
         from matplotlib import pyplot as plt
         os.makedirs("result", exist_ok=True)
         filepath = os.path.join("result", filename)
-        plt.imsave(filepath, pixel)
+        # Menggunakan format jpg dengan kualitas tinggi
+        plt.imsave(filepath, pixel, format='jpg')
         return filepath
     
     def display_images(self, images, titles=None):
