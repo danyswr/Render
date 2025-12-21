@@ -6,7 +6,7 @@ Real-time visualization dengan rocket model asli
 print("\033c")
 import os
 import numpy as np
-from interactive_input import InteractiveInput
+from gui_input import GUIInput
 from config_manager import ConfigManager
 from rocket_model import RocketModel
 from transform import Transform
@@ -134,30 +134,21 @@ def render_with_config(config: ConfigManager):
 
 def main():
     print("=" * 70)
-    print(" " * 15 + "ROCKET 3D RENDERER - INTERACTIVE MODE v2")
+    print(" " * 15 + "ROCKET 3D RENDERER - GUI MODE v3")
     print("=" * 70)
-    print("\nThis program will guide you through:")
-    print("  1. Camera Setup - Position and rotation (Pitch/Yaw)")
-    print("  2. Translation Path - Define waypoints with real-time rocket preview")
-    print("  3. Rotation - Configure object rotation at each position")
-    print("  4. Frame Count - Set how many frames to render")
-    print("\nReal-time Matplotlib visualization with actual rocket model!")
-    print("\n" + "-" * 70)
+    print("\nOpening GUI configuration interface...")
+    print("Please configure your camera and object settings in the GUI window.")
+    print("\n" + "-" * 70 + "\n")
     
-    load_existing = input("\nLoad existing configuration? (y/N, tekan Enter=tidak): ").strip().lower()
+    # Launch GUI
+    gui = GUIInput()
+    config = gui.run()
     
-    if load_existing == 'y':
-        config = ConfigManager()
-        config.load()
-        print("\n✓ Using loaded configuration.")
-    else:
-        interactive = InteractiveInput()
-        config = interactive.run()
-        
-        if config is None:
-            print("\n✗ Configuration cancelled. Exiting.")
-            return
+    if config is None:
+        print("\n✗ Configuration cancelled. Exiting.")
+        return
     
+    print("\n✓ Configuration complete!")
     proceed = input("\nProceed with rendering? (Y/n, tekan Enter=ya): ").strip().lower()
     if proceed == 'n':
         print("\n✗ Render cancelled. Configuration saved for later use.")
