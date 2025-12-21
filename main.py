@@ -33,7 +33,6 @@ def render_with_config(config: ConfigManager):
     cam_position = (cam_pos[0] + rocket.cx, cam_pos[1] + rocket.cy, cam_pos[2] + rocket.cz)
     cam_target = (rocket.cx, rocket.cy, rocket.cz)
     
-    # Convert pitch/yaw to x/y for Camera class
     camera = Camera(cam_position, cam_target, {
         "x": cam_rotation.get("pitch", 0),
         "y": cam_rotation.get("yaw", 0),

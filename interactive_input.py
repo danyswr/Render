@@ -116,6 +116,26 @@ class InteractiveInput:
         
         return {"x": x, "y": y}
     
+    def _input_camera_position_realtime(self, default_x=0.0, default_y=0.0, default_z=-150.0) -> List[float]:
+        """Input camera position with real-time visualization"""
+        print(f"\n  Default: ({default_x:.1f}, {default_y:.1f}, {default_z:.1f})")
+        print("  [Tekan ENTER tanpa angka untuk gunakan default]")
+        print("  Tips: Z negatif = kamera di belakang objek")
+        
+        x = self._get_float_input(f"  X [{default_x:.1f}]: ", default_x)
+        self.visualizer.set_camera_position(x, default_y, default_z)
+        self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
+        
+        y = self._get_float_input(f"  Y [{default_y:.1f}]: ", default_y)
+        self.visualizer.set_camera_position(x, y, default_z)
+        self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
+        
+        z = self._get_float_input(f"  Z [{default_z:.1f}]: ", default_z)
+        self.visualizer.set_camera_position(x, y, z)
+        self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
+        
+        return [x, y, z]
+    
     def input_camera_stage(self):
         """Stage 0: Setup camera with translation and rotation (X,Y only)"""
         print("\n" + "="*60)
@@ -148,8 +168,7 @@ class InteractiveInput:
             
             if choice == 1:
                 print("\n--- EDIT POSISI KAMERA (X, Y, Z) ---")
-                print("Tips: Z negatif = kamera di belakang objek")
-                pos_input = self._input_xyz_realtime("Posisi kamera:", cam_x, cam_y, cam_z)
+                pos_input = self._input_camera_position_realtime(cam_x, cam_y, cam_z)
                 cam_x, cam_y, cam_z = pos_input[0], pos_input[1], pos_input[2]
                 
                 self.visualizer.set_camera_position(cam_x, cam_y, cam_z)
@@ -453,15 +472,25 @@ class InteractiveInput:
             self.visualizer.close()
             return None
         
-        # Save configuration
-        self.config.set_camera_translation(self.camera_position)
-        self.config.set_camera_rotation(self.camera_rotation["x"], self.camera_rotation["y"])
-        self.config.set_render_settings(self.total_frames)
+        # Save to config
+        for point, rot in zip(self.translation_points, self.rotations):
+            self.config.add_animation_point(
+                position=point,
+                pitch=rot["x"],
+                yaw=rot["y"]
+            )
         
-        for point, rotation in zip(self.translation_points, self.rotations):
-            self.config.add_animation_point(point, rotation)
+        self.config.set_camera_settings(
+            position=self.camera_position,
+            pitch=self.camera_rotation["x"],
+            yaw=self.camera_rotation["y"]
+        )
+        
+        self.config.set_render_settings(total_frames=self.total_frames)
         
         self.config.save()
+        print("\n✓ Konfigurasi tersimpan!")
         
         self.visualizer.close()
+        
         return self.config
