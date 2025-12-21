@@ -29,6 +29,7 @@ class GUIInput:
         
         self.result = None
         self.current_tab = "camera"
+        self.selected_point_idx = None
         
         # Show matplotlib awal
         self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
@@ -71,7 +72,7 @@ class GUIInput:
         
         ttk.Button(btn_frame, text="Render Now", 
                   command=self.render_config).pack(side=tk.RIGHT, padx=10)
-        ttk.Button(btn_frame, text="Apply (Save Only)", 
+        ttk.Button(btn_frame, text="Apply (Save & Update View)", 
                   command=self.apply_config).pack(side=tk.RIGHT, padx=10)
         ttk.Button(btn_frame, text="Cancel", 
                   command=self.cancel).pack(side=tk.RIGHT, padx=10)
@@ -92,6 +93,7 @@ class GUIInput:
     def show_tab(self, tab_name):
         """Tampilkan tab yang dipilih"""
         self.current_tab = tab_name
+        self.selected_point_idx = None
         self.clear_content()
         
         if tab_name == "camera":
@@ -171,6 +173,7 @@ class GUIInput:
         self.cam_listbox = tk.Listbox(list_container, yscrollcommand=scrollbar2.set, 
                                       font=("Arial", 10), height=8)
         self.cam_listbox.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        self.cam_listbox.bind('<Button-1>', self.on_camera_point_click)
         scrollbar2.config(command=self.cam_listbox.yview)
         
         self.update_cam_listbox()
@@ -179,7 +182,8 @@ class GUIInput:
         btn_row = ttk.Frame(anim_frame)
         btn_row.pack(fill=tk.X, pady=10)
         
-        ttk.Button(btn_row, text="Add Point", command=self.add_camera_point).pack(side=tk.LEFT, padx=10)
+        ttk.Button(btn_row, text="Add Point from Current", command=self.add_camera_point).pack(side=tk.LEFT, padx=10)
+        ttk.Button(btn_row, text="Edit Selected Rotation", command=self.edit_camera_rotation).pack(side=tk.LEFT, padx=10)
         ttk.Button(btn_row, text="Remove Selected", command=self.remove_camera_point).pack(side=tk.LEFT, padx=10)
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -200,7 +204,7 @@ class GUIInput:
         canvas.configure(yscrollcommand=scrollbar.set)
         
         # ===== INPUT SECTION =====
-        input_frame = ttk.LabelFrame(scrollable, text="ADD TRANSLATION POINT", padding=15)
+        input_frame = ttk.LabelFrame(scrollable, text="ADD OBJECT POINT (Translation + Rotation)", padding=15)
         input_frame.pack(fill=tk.X, padx=15, pady=15)
         
         self.trans_x = tk.DoubleVar(value=0.0)
@@ -232,10 +236,10 @@ class GUIInput:
         ttk.Label(row2, text="Yaw:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
         ttk.Entry(row2, textvariable=self.rot_yaw, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Button(row2, text="Add Translation Point", command=self.add_translation_point).pack(side=tk.RIGHT, padx=15)
+        ttk.Button(row2, text="Add Point", command=self.add_translation_point).pack(side=tk.RIGHT, padx=15)
         
         # ===== TRANSLATION POINTS LIST =====
-        trans_frame = ttk.LabelFrame(scrollable, text="TRANSLATION POINTS", padding=15)
+        trans_frame = ttk.LabelFrame(scrollable, text="OBJECT POINTS (Click to Edit Rotation)", padding=15)
         trans_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
         list_container = ttk.Frame(trans_frame)
@@ -247,6 +251,7 @@ class GUIInput:
         self.trans_listbox = tk.Listbox(list_container, yscrollcommand=scrollbar2.set, 
                                        font=("Arial", 10), height=8)
         self.trans_listbox.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        self.trans_listbox.bind('<Button-1>', self.on_object_point_click)
         scrollbar2.config(command=self.trans_listbox.yview)
         
         self.update_trans_listbox()
@@ -254,6 +259,7 @@ class GUIInput:
         btn_row = ttk.Frame(trans_frame)
         btn_row.pack(fill=tk.X, pady=10)
         
+        ttk.Button(btn_row, text="Edit Selected Rotation", command=self.edit_object_rotation).pack(side=tk.LEFT, padx=10)
         ttk.Button(btn_row, text="Remove Selected", command=self.remove_translation_point).pack(side=tk.LEFT, padx=10)
         
         # ===== RENDER SETTINGS =====
@@ -288,6 +294,82 @@ class GUIInput:
         self.load_status = ttk.Label(frame, text="", font=("Arial", 10), 
                                     foreground="green")
         self.load_status.pack(pady=20)
+    
+    def on_camera_point_click(self, event):
+        """Handle camera point selection"""
+        selection = self.cam_listbox.curselection()
+        if selection:
+            self.selected_point_idx = selection[0]
+    
+    def on_object_point_click(self, event):
+        """Handle object point selection"""
+        selection = self.trans_listbox.curselection()
+        if selection:
+            self.selected_point_idx = selection[0]
+    
+    def edit_camera_rotation(self):
+        """Edit selected camera point rotation"""
+        if self.selected_point_idx is None:
+            messagebox.showwarning("Warning", "Pilih point dulu!")
+            return
+        
+        if self.selected_point_idx >= len(self.camera_rotations):
+            messagebox.showerror("Error", "Invalid point index")
+            return
+        
+        edit_window = tk.Toplevel(self.window)
+        edit_window.title("Edit Camera Rotation")
+        edit_window.geometry("400x200")
+        
+        pitch_var = tk.DoubleVar(value=self.camera_rotations[self.selected_point_idx]["x"])
+        yaw_var = tk.DoubleVar(value=self.camera_rotations[self.selected_point_idx]["y"])
+        
+        ttk.Label(edit_window, text="Pitch (X):", font=("Arial", 11)).pack(pady=10)
+        ttk.Entry(edit_window, textvariable=pitch_var, width=20, font=("Arial", 11)).pack(pady=5)
+        
+        ttk.Label(edit_window, text="Yaw (Y):", font=("Arial", 11)).pack(pady=10)
+        ttk.Entry(edit_window, textvariable=yaw_var, width=20, font=("Arial", 11)).pack(pady=5)
+        
+        def save_changes():
+            self.camera_rotations[self.selected_point_idx]["x"] = pitch_var.get()
+            self.camera_rotations[self.selected_point_idx]["y"] = yaw_var.get()
+            self.update_cam_listbox()
+            self.status.config(text="Status: Camera rotation updated")
+            edit_window.destroy()
+        
+        ttk.Button(edit_window, text="Save", command=save_changes).pack(pady=15)
+    
+    def edit_object_rotation(self):
+        """Edit selected object point rotation"""
+        if self.selected_point_idx is None:
+            messagebox.showwarning("Warning", "Pilih point dulu!")
+            return
+        
+        if self.selected_point_idx >= len(self.rotations):
+            messagebox.showerror("Error", "Invalid point index")
+            return
+        
+        edit_window = tk.Toplevel(self.window)
+        edit_window.title("Edit Object Rotation")
+        edit_window.geometry("400x200")
+        
+        pitch_var = tk.DoubleVar(value=self.rotations[self.selected_point_idx]["x"])
+        yaw_var = tk.DoubleVar(value=self.rotations[self.selected_point_idx]["y"])
+        
+        ttk.Label(edit_window, text="Pitch (X):", font=("Arial", 11)).pack(pady=10)
+        ttk.Entry(edit_window, textvariable=pitch_var, width=20, font=("Arial", 11)).pack(pady=5)
+        
+        ttk.Label(edit_window, text="Yaw (Y):", font=("Arial", 11)).pack(pady=10)
+        ttk.Entry(edit_window, textvariable=yaw_var, width=20, font=("Arial", 11)).pack(pady=5)
+        
+        def save_changes():
+            self.rotations[self.selected_point_idx]["x"] = pitch_var.get()
+            self.rotations[self.selected_point_idx]["y"] = yaw_var.get()
+            self.update_trans_listbox()
+            self.status.config(text="Status: Object rotation updated")
+            edit_window.destroy()
+        
+        ttk.Button(edit_window, text="Save", command=save_changes).pack(pady=15)
     
     def update_vis(self):
         """Update matplotlib visualization"""
@@ -345,7 +427,7 @@ class GUIInput:
             self.rotations.append(rotation)
             
             self.update_trans_listbox()
-            self.status.config(text="Status: Translation point added")
+            self.status.config(text="Status: Object point added")
         except Exception as e:
             messagebox.showerror("Error", f"Invalid input: {e}")
     
@@ -357,7 +439,7 @@ class GUIInput:
             self.translation_points.pop(idx)
             self.rotations.pop(idx)
             self.update_trans_listbox()
-            self.status.config(text="Status: Translation point removed")
+            self.status.config(text="Status: Object point removed")
     
     def update_trans_listbox(self):
         """Update translation listbox"""
@@ -448,11 +530,31 @@ class GUIInput:
         self.config.set_render_settings(self.total_frames)
     
     def apply_config(self):
-        """Apply config - save to JSON only"""
+        """Apply config - save to JSON and update visualization"""
         try:
             self.save_to_config()
             self.config.save()
-            self.status.config(text="Status: Configuration saved to JSON!")
+            self.status.config(text="Status: Configuration saved to JSON and view updated!")
+            
+            # Update visualization with current settings
+            if len(self.translation_points) > 0:
+                first_point = self.translation_points[0]
+                first_rot = self.rotations[0] if len(self.rotations) > 0 else {"x": 0, "y": 0}
+                self.visualizer.show_translation_with_rocket(
+                    self.translation_points,
+                    None,
+                    self.rotations
+                )
+            elif len(self.camera_translation_points) > 0:
+                self.visualizer.show_camera_translation_path(
+                    self.camera_translation_points,
+                    None,
+                    self.camera_rotations
+                )
+            else:
+                self.update_vis()
+            
+            plt.draw()
             messagebox.showinfo("Success", "Configuration saved!\n\nClick 'Render Now' when ready to render.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save: {e}")
