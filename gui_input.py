@@ -538,8 +538,6 @@ class GUIInput:
             
             # Update visualization with current settings
             if len(self.translation_points) > 0:
-                first_point = self.translation_points[0]
-                first_rot = self.rotations[0] if len(self.rotations) > 0 else {"x": 0, "y": 0}
                 self.visualizer.show_translation_with_rocket(
                     self.translation_points,
                     None,
