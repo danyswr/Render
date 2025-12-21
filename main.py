@@ -31,16 +31,16 @@ def render_with_config(config: ConfigManager):
     cam_pos = camera_settings.get("translation", {}).get("position", [0, 0, -150])
     cam_rotation = camera_settings.get("rotation", {"pitch": 0, "yaw": 0})
     
-    cam_position = (cam_pos[0] + rocket.cx, cam_pos[1] + rocket.cy, cam_pos[2] + rocket.cz)
-    cam_target = (rocket.cx, rocket.cy, rocket.cz)
-    
-    camera = Camera(cam_position, cam_target, {
-        "x": cam_rotation.get("pitch", 0),
-        "y": cam_rotation.get("yaw", 0),
-        "z": 0
-    })
-    print(f"✓ Camera positioned at: {cam_position}")
-    print(f"✓ Camera rotation: Pitch={cam_rotation.get('pitch', 0)}° Yaw={cam_rotation.get('yaw', 0)}°")
+    # Get camera animation points
+    camera_animation_points = config.get_camera_animation_points()
+    if len(camera_animation_points) > 0:
+        print(f"✓ Camera has {len(camera_animation_points)} animation point(s)")
+    else:
+        # Use default camera settings if no animation points
+        camera_animation_points = [{
+            "translation": {"position": cam_pos},
+            "rotation": {"pitch": cam_rotation.get("pitch", 0), "yaw": cam_rotation.get("yaw", 0)}
+        }]
     
     print("\n[3] Initializing Renderer...")
     canvas_settings = config.get_canvas_settings()
@@ -66,16 +66,38 @@ def render_with_config(config: ConfigManager):
     
     rendered_images = []
     
-    for i, point_data in enumerate(animation_points):
+    # Calculate total frames based on max of object points and camera points
+    max_points = max(len(animation_points), len(camera_animation_points))
+    
+    for i in range(max_points):
+        # Get object animation point (cycle if needed)
+        obj_idx = i % len(animation_points)
+        point_data = animation_points[obj_idx]
         translation = point_data["translation"]["position"]
         rotation = point_data["rotation"]
-        
         rot_x = rotation.get('pitch', 0.0)
         rot_y = rotation.get('yaw', 0.0)
         
-        print(f"\n  Frame {i+1}/{len(animation_points)}:")
-        print(f"    Position: ({translation[0]:.1f}, {translation[1]:.1f}, {translation[2]:.1f})")
-        print(f"    Rotation: Pitch={rot_x}°, Yaw={rot_y}°")
+        # Get camera animation point (cycle if needed)
+        cam_idx = i % len(camera_animation_points)
+        cam_point_data = camera_animation_points[cam_idx]
+        cam_trans = cam_point_data["translation"]["position"]
+        cam_rot = cam_point_data["rotation"]
+        
+        # Create camera for this frame
+        cam_position = (cam_trans[0] + rocket.cx, cam_trans[1] + rocket.cy, cam_trans[2] + rocket.cz)
+        cam_target = (rocket.cx, rocket.cy, rocket.cz)
+        camera = Camera(cam_position, cam_target, {
+            "x": cam_rot.get("pitch", 0),
+            "y": cam_rot.get("yaw", 0),
+            "z": 0
+        })
+        
+        print(f"\n  Frame {i+1}/{max_points}:")
+        print(f"    Object Position: ({translation[0]:.1f}, {translation[1]:.1f}, {translation[2]:.1f})")
+        print(f"    Object Rotation: Pitch={rot_x}°, Yaw={rot_y}°")
+        print(f"    Camera Position: ({cam_trans[0]:.1f}, {cam_trans[1]:.1f}, {cam_trans[2]:.1f})")
+        print(f"    Camera Rotation: Pitch={cam_rot.get('pitch', 0)}°, Yaw={cam_rot.get('yaw', 0)}°")
         
         transform = Transform()
         transform.set_rotation_degrees(
@@ -103,6 +125,8 @@ def render_with_config(config: ConfigManager):
     print("=" * 60)
     print(f"\nOutput saved in 'result/' folder:")
     print(f"  - {len(rendered_images)} frame(s) rendered")
+    print(f"  - Object animation points: {len(animation_points)}")
+    print(f"  - Camera animation points: {len(camera_animation_points)}")
     print(f"  - Configuration: result/animation_config.json")
     print(f"  - Total frames configured: {total_frames}")
     print("=" * 60)

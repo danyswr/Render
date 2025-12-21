@@ -13,6 +13,8 @@ class InteractiveInput:
         self.rotations: List[Dict[str, float]] = []
         self.camera_position: List[float] = [0.0, 0.0, -150.0]
         self.camera_rotation: Dict[str, float] = {"x": 0.0, "y": 0.0}
+        self.camera_translation_points: List[List[float]] = []
+        self.camera_rotations: List[Dict[str, float]] = []
         self.total_frames: int = 1
     
     def _get_float_input(self, prompt: str, default: float = 0.0) -> float:
@@ -84,6 +86,29 @@ class InteractiveInput:
                     label = f"P{i}"
                 print(f"  {i+1:3}.  | {label:6} | ({point[0]:7.1f}, {point[1]:7.1f}, {point[2]:7.1f})")
         print("=" * 55)
+    
+    def _display_camera_points_table(self, points: List[List[float]], rotations: List[Dict[str, float]] = None, title: str = "DAFTAR TITIK KAMERA"):
+        """Display clean table of camera points with rotations"""
+        print("\n" + "=" * 75)
+        print(f"  {title}")
+        print("=" * 75)
+        if len(points) == 0:
+            print("  (Belum ada titik kamera)")
+        else:
+            print("  No.  | Label      | Koordinat (X, Y, Z)       | Rotasi (Pitch, Yaw)")
+            print("  " + "-" * 70)
+            for i, point in enumerate(points):
+                if i == 0:
+                    label = "CAM_START"
+                elif i == len(points) - 1 and len(points) > 1:
+                    label = "CAM_END"
+                else:
+                    label = f"CAM_P{i}"
+                rot = rotations[i] if rotations and i < len(rotations) else {"x": 0.0, "y": 0.0}
+                coord_str = f"({point[0]:7.1f}, {point[1]:7.1f}, {point[2]:7.1f})"
+                rot_str = f"Pitch={rot['x']:.0f}°, Yaw={rot['y']:.0f}°"
+                print(f"  {i+1:3}.  | {label:10} | {coord_str:25} | {rot_str}")
+        print("=" * 75)
     
     def _input_xyz_realtime(self, prompt: str, default_x=0.0, default_y=0.0, default_z=0.0, update_func=None) -> List[float]:
         """Input XYZ with real-time updates"""
@@ -229,6 +254,164 @@ class InteractiveInput:
                     break
                 else:
                     print("Kembali ke menu...")
+        
+        return True
+    
+    def input_camera_translation_stage(self):
+        """Stage 0b: Input camera translation path (similar to object translation)"""
+        print("\n" + "="*60)
+        print("  TAHAP 0b: JALUR TRANSLASI KAMERA")
+        print("="*60)
+        print("  1. Tentukan titik AWAL kamera (CAM_START)")
+        print("  2. Tambahkan titik-titik kamera lainnya")
+        print("  3. Titik terakhir = titik AKHIR kamera (CAM_END)")
+        print("  Konsep sama seperti translasi objek roket!")
+        print("-"*60)
+        
+        cam_points = []
+        cam_rotations = []
+        
+        print("\n>>> LANGKAH 1: Tentukan Titik Awal Kamera (CAM_START)")
+        
+        def update_camera_preview(pos):
+            self.visualizer.show_camera_translation_path(cam_points, pos, cam_rotations)
+        
+        start_point = self._input_xyz_realtime("Koordinat titik CAM_START:", 0.0, 0.0, -150.0, update_camera_preview)
+        self.visualizer.show_camera_translation_path([], start_point, [])
+        
+        print(f"\n  Titik CAM_START: ({start_point[0]:.1f}, {start_point[1]:.1f}, {start_point[2]:.1f})")
+        
+        print("\n  Masukkan rotasi untuk titik ini:")
+        start_rot = self._input_rotation_realtime(0.0, 0.0)
+        
+        if self._get_yes_no("Konfirmasi titik CAM_START?", default_yes=True):
+            cam_points.append(start_point)
+            cam_rotations.append(start_rot)
+            print("Titik CAM_START ditambahkan!")
+        else:
+            while True:
+                start_point = self._input_xyz_realtime("Koordinat titik CAM_START:", 0.0, 0.0, -150.0, update_camera_preview)
+                self.visualizer.show_camera_translation_path([], start_point, [])
+                start_rot = self._input_rotation_realtime(0.0, 0.0)
+                if self._get_yes_no("Konfirmasi titik CAM_START?", default_yes=True):
+                    cam_points.append(start_point)
+                    cam_rotations.append(start_rot)
+                    break
+        
+        print("\n>>> LANGKAH 2: Tambahkan Titik Kamera Lainnya")
+        
+        while True:
+            self._display_camera_points_table(cam_points, cam_rotations)
+            self.visualizer.show_camera_translation_path(cam_points, None, cam_rotations)
+            
+            if len(cam_points) >= 2:
+                self._display_menu(["Tambah Titik Kamera Baru", "Edit Titik Kamera", "Hapus Titik Kamera", "Konfirmasi Jalur Kamera"], default=4)
+                choice = self._get_int_input("Pilih opsi: ", 1, 4, default=4)
+                if choice == -1:
+                    choice = 4
+            else:
+                self._display_menu(["Tambah Titik Kamera Baru", "Edit Titik Kamera", "Hapus Titik Kamera", "Konfirmasi Jalur Kamera"], default=1)
+                choice = self._get_int_input("Pilih opsi: ", 1, 4, default=1)
+                if choice == -1:
+                    choice = 1
+            
+            if choice == 1:
+                print("\n--- TAMBAH TITIK KAMERA BARU ---")
+                last = cam_points[-1] if cam_points else [0.0, 0.0, -150.0]
+                new_point = self._input_xyz_realtime(f"Koordinat titik CAM_P{len(cam_points)}:", last[0], last[1], last[2], update_camera_preview)
+                self.visualizer.show_camera_translation_path(cam_points, new_point, cam_rotations)
+                
+                print("\n  Masukkan rotasi untuk titik ini:")
+                last_rot = cam_rotations[-1] if cam_rotations else {"x": 0.0, "y": 0.0}
+                new_rot = self._input_rotation_realtime(last_rot['x'], last_rot['y'])
+                
+                if self._get_yes_no("Konfirmasi tambah titik kamera ini?", default_yes=True):
+                    cam_points.append(new_point)
+                    cam_rotations.append(new_rot)
+                    print("Titik kamera ditambahkan!")
+            
+            elif choice == 2:
+                if len(cam_points) == 0:
+                    print("\nBelum ada titik kamera untuk diedit.")
+                    continue
+                
+                print("\n--- EDIT TITIK KAMERA ---")
+                self._display_camera_points_table(cam_points, cam_rotations)
+                idx = self._get_int_input(f"Pilih nomor titik (1-{len(cam_points)}): ", 1, len(cam_points))
+                if idx == -1:
+                    print("Dibatalkan.")
+                    continue
+                
+                idx -= 1
+                old = cam_points[idx]
+                old_rot = cam_rotations[idx] if idx < len(cam_rotations) else {"x": 0.0, "y": 0.0}
+                label = "CAM_START" if idx == 0 else ("CAM_END" if idx == len(cam_points)-1 else f"CAM_P{idx}")
+                
+                print(f"\n  Mengedit {label}")
+                new_point = self._input_xyz_realtime(f"Koordinat baru untuk {label}:", old[0], old[1], old[2], update_camera_preview)
+                
+                temp_points = cam_points[:idx] + [new_point] + cam_points[idx+1:]
+                self.visualizer.show_camera_translation_path(temp_points, None, cam_rotations)
+                
+                print(f"\n  Rotasi saat ini: Pitch={old_rot['x']}°, Yaw={old_rot['y']}°")
+                edit_rot = self._get_yes_no("Edit rotasi juga?", default_yes=False)
+                if edit_rot:
+                    new_rot = self._input_rotation_realtime(old_rot['x'], old_rot['y'])
+                else:
+                    new_rot = old_rot
+                
+                if self._get_yes_no("Konfirmasi perubahan?", default_yes=True):
+                    cam_points[idx] = new_point
+                    cam_rotations[idx] = new_rot
+                    print("Titik kamera diupdate!")
+                else:
+                    print("Dibatalkan.")
+            
+            elif choice == 3:
+                if len(cam_points) == 0:
+                    print("\nBelum ada titik kamera untuk dihapus.")
+                    continue
+                
+                if len(cam_points) == 1:
+                    print("\nTidak bisa menghapus titik CAM_START satu-satunya.")
+                    continue
+                
+                print("\n--- HAPUS TITIK KAMERA ---")
+                self._display_camera_points_table(cam_points, cam_rotations)
+                idx = self._get_int_input(f"Pilih nomor titik (1-{len(cam_points)}): ", 1, len(cam_points))
+                if idx == -1:
+                    print("Dibatalkan.")
+                    continue
+                
+                idx -= 1
+                old = cam_points[idx]
+                label = "CAM_START" if idx == 0 else ("CAM_END" if idx == len(cam_points)-1 else f"CAM_P{idx}")
+                
+                print(f"\n  Akan menghapus {label}: ({old[0]:.1f}, {old[1]:.1f}, {old[2]:.1f})")
+                if self._get_yes_no("Konfirmasi hapus?", default_yes=False):
+                    cam_points.pop(idx)
+                    if idx < len(cam_rotations):
+                        cam_rotations.pop(idx)
+                    print("Titik kamera dihapus!")
+            
+            elif choice == 4:
+                if len(cam_points) < 1:
+                    print("\n[!] Minimal 1 titik kamera diperlukan.")
+                    continue
+                
+                print("\n" + "=" * 75)
+                print("  KONFIRMASI JALUR TRANSLASI KAMERA")
+                print("=" * 75)
+                self._display_camera_points_table(cam_points, cam_rotations, "JALUR KAMERA FINAL")
+                
+                if self._get_yes_no("Konfirmasi jalur kamera ini?", default_yes=True):
+                    self.camera_translation_points = cam_points
+                    self.camera_rotations = cam_rotations
+                    if cam_points:
+                        self.camera_position = cam_points[0]
+                        self.camera_rotation = cam_rotations[0] if cam_rotations else {"x": 0.0, "y": 0.0}
+                    print("Jalur translasi kamera dikonfirmasi!")
+                    break
         
         return True
     
@@ -462,7 +645,8 @@ class InteractiveInput:
         print("\nProgram ini akan memandu Anda mengatur animasi roket.")
         print("Visualisasi REAL-TIME ditampilkan dengan rocket model asli!")
         print("\nTahap:")
-        print("  0. Setup Kamera (posisi X,Y,Z & rotasi)")
+        print("  0a. Setup Kamera Awal (posisi X,Y,Z & rotasi)")
+        print("  0b. Jalur Translasi Kamera (BARU! - tambah/edit/hapus titik)")
         print("  1. Jalur Translasi Object")
         print("  2. Rotasi Object (Pitch & Yaw)")
         print("  3. Jumlah Frame")
@@ -479,11 +663,20 @@ class InteractiveInput:
                 cam_settings = self.config.get_camera_settings()
                 self.camera_position = cam_settings["translation"]["position"]
                 self.camera_rotation = {"x": cam_settings["rotation"]["pitch"], "y": cam_settings["rotation"]["yaw"]}
+                # Load camera animation points
+                cam_anim_points = self.config.get_camera_animation_points()
+                if cam_anim_points:
+                    self.camera_translation_points = [p["translation"]["position"] for p in cam_anim_points]
+                    self.camera_rotations = [{"x": p["rotation"]["pitch"], "y": p["rotation"]["yaw"]} for p in cam_anim_points]
                 self.total_frames = self.config.get_render_settings().get("total_frames", 1)
                 print("\n✓ Konfigurasi loaded!")
             return self.config
         
         if not self.input_camera_stage():
+            self.visualizer.close()
+            return None
+        
+        if not self.input_camera_translation_stage():
             self.visualizer.close()
             return None
         
@@ -512,6 +705,14 @@ class InteractiveInput:
             pitch=self.camera_rotation["x"],
             yaw=self.camera_rotation["y"]
         )
+        
+        # Save camera animation points
+        for point, rot in zip(self.camera_translation_points, self.camera_rotations):
+            self.config.add_camera_animation_point(
+                position=point,
+                pitch=rot["x"],
+                yaw=rot["y"]
+            )
         
         self.config.set_render_settings(total_frames=self.total_frames)
         

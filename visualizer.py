@@ -95,6 +95,93 @@ class Visualizer:
         
         return forward
     
+    def _draw_camera_path(self, ax, camera_points: List[List[float]], current_point: Optional[List[float]] = None):
+        """Draw camera translation path with waypoints"""
+        if len(camera_points) > 0:
+            for i, point in enumerate(camera_points):
+                if i == 0:
+                    label = "CAM_START"
+                    color = 'green'
+                elif i == len(camera_points) - 1 and len(camera_points) > 1:
+                    label = "CAM_END"
+                    color = 'red'
+                else:
+                    label = f"CAM_P{i}"
+                    color = 'purple'
+                
+                ax.scatter([point[0]], [point[1]], [point[2]], 
+                          c=color, s=100, marker='o', alpha=0.8, edgecolors='white', linewidths=2)
+                ax.text(point[0]+5, point[1]+5, point[2]+5, label, fontsize=8, fontweight='bold', color=color)
+            
+            if len(camera_points) > 1:
+                pts = np.array(camera_points)
+                ax.plot(pts[:, 0], pts[:, 1], pts[:, 2], 'purple', linewidth=2, alpha=0.6, linestyle='--')
+        
+        if current_point is not None:
+            ax.scatter([current_point[0]], [current_point[1]], [current_point[2]], 
+                      c='orange', s=150, marker='*', alpha=1.0, edgecolors='white', linewidths=2)
+            ax.text(current_point[0]+5, current_point[1]+5, current_point[2]+5, 
+                   'NEW_CAM', fontsize=9, fontweight='bold', color='orange')
+    
+    def show_camera_translation_path(self, camera_points: List[List[float]], current_point: Optional[List[float]] = None, 
+                                     camera_rotations: List[Dict] = None):
+        """Show camera translation path with preview"""
+        self._ensure_figure()
+        
+        all_coords = []
+        if len(camera_points) > 0:
+            all_coords.extend(camera_points)
+        if current_point is not None:
+            all_coords.append(current_point)
+        all_coords.append([0, 0, 0])
+        
+        if len(all_coords) > 0:
+            coords_array = np.array(all_coords)
+            max_coord = max(np.abs(coords_array).max() + 20, 50)
+        else:
+            max_coord = 50
+        
+        limit = int(max_coord)
+        
+        self._add_grid_3d(self.ax_scene, limit)
+        
+        self._draw_rocket_3d(self.ax_scene, [0, 0, 0], {"x": 0, "y": 0}, quality="fast")
+        self.ax_scene.text(5, 5, 5, 'ROCKET', fontsize=10, fontweight='bold', color='blue')
+        
+        self._draw_camera_path(self.ax_scene, camera_points, current_point)
+        
+        display_cam_pos = current_point if current_point else (camera_points[-1] if camera_points else self.camera_position.tolist())
+        display_cam_rot = camera_rotations[-1] if camera_rotations and len(camera_rotations) > 0 else self.camera_rotation
+        
+        self.set_camera_position(display_cam_pos[0], display_cam_pos[1], display_cam_pos[2])
+        if isinstance(display_cam_rot, dict):
+            self.set_camera_rotation(display_cam_rot.get('x', 0), display_cam_rot.get('y', 0))
+        
+        self._draw_camera_indicator(self.ax_scene, [0, 0, 0], limit)
+        
+        self.ax_scene.set_title('Scene 3D - Camera Translation Path', fontsize=10)
+        
+        self.ax_camera.set_facecolor('white')
+        self.ax_camera.set_xlim([-2, 2])
+        self.ax_camera.set_ylim([-1.5, 1.5])
+        self.ax_camera.set_aspect('equal')
+        self.ax_camera.grid(True, alpha=0.3)
+        self.ax_camera.set_xlabel('X')
+        self.ax_camera.set_ylabel('Y')
+        
+        self._render_rocket_to_camera_view(self.ax_camera, [0, 0, 0], {"x": 0, "y": 0}, quality="fast")
+        
+        cam_pos = self.camera_position
+        cam_rot = self.camera_rotation
+        title = f'Camera View from Current Position\n'
+        title += f'Cam Pos: ({cam_pos[0]:.0f}, {cam_pos[1]:.0f}, {cam_pos[2]:.0f}) | '
+        title += f'Cam Rot: Pitch={cam_rot["x"]:.0f}° Yaw={cam_rot["y"]:.0f}°'
+        self.ax_camera.set_title(title, fontsize=9)
+        
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()
+        plt.pause(0.001)
+    
     def _draw_camera_indicator(self, ax, rocket_position: List[float], limit=50):
         """Draw camera as sphere with X marker showing VIEW DIRECTION (based on pitch/yaw)"""
         cam_x, cam_y, cam_z = self.camera_position

@@ -30,7 +30,8 @@ class ConfigManager:
                     "pitch": 0.0,
                     "yaw": 0.0,
                     "description": "Camera rotation - Pitch (X-axis), Yaw (Y-axis) in degrees"
-                }
+                },
+                "animation_points": []
             },
             "canvas": {
                 "width": 640,
@@ -77,6 +78,34 @@ class ConfigManager:
         """Set all camera settings at once"""
         self.set_camera_translation(position)
         self.set_camera_rotation(pitch, yaw)
+    
+    def add_camera_animation_point(self, position: List[float], pitch: float = 0.0, yaw: float = 0.0):
+        """Add camera animation point with translation and rotation
+        
+        Args:
+            position: [x, y, z] position of camera
+            pitch: camera rotation pitch in degrees
+            yaw: camera rotation yaw in degrees
+        """
+        self.config["camera"]["animation_points"].append({
+            "translation": {
+                "position": [float(x) for x in position],
+                "description": "Camera translation in world space (X, Y, Z)"
+            },
+            "rotation": {
+                "pitch": float(pitch),
+                "yaw": float(yaw),
+                "description": "Camera rotation - Pitch (X-axis), Yaw (Y-axis) in degrees"
+            }
+        })
+    
+    def clear_camera_animation_points(self):
+        """Clear all camera animation points"""
+        self.config["camera"]["animation_points"] = []
+    
+    def get_camera_animation_points(self) -> List[Dict]:
+        """Get all camera animation points"""
+        return self.config["camera"]["animation_points"]
     
     def set_render_settings(self, total_frames: int = 1):
         """Set render settings"""
