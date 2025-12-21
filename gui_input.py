@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 
 
 class GUIInput:
-    """Simple GUI untuk input konfigurasi - matplotlib ditampilkan langsung"""
+    """GUI untuk input konfigurasi - layout yang lebih baik dan lega"""
     
     def __init__(self):
         self.window = tk.Tk()
         self.window.title("Rocket 3D Renderer - Configuration")
-        self.window.geometry("1000x700")
-        self.window.resizable(True, True)
+        self.window.geometry("1400x850")
+        self.window.minsize(1000, 700)
         
         self.config = ConfigManager()
         self.visualizer = Visualizer()
@@ -28,6 +28,7 @@ class GUIInput:
         self.total_frames = 1
         
         self.result = None
+        self.current_tab = "camera"
         
         # Show matplotlib awal
         self.visualizer.show_camera_setup_realtime([0, 0, 0], {"x": 0, "y": 0})
@@ -36,73 +37,73 @@ class GUIInput:
         self.setup_ui()
     
     def setup_ui(self):
-        """Setup main UI dengan tab"""
-        # Header
-        header = ttk.Frame(self.window)
-        header.pack(fill=tk.X, padx=15, pady=10)
+        """Setup main UI"""
+        # Header frame dengan button selector
+        header = ttk.Frame(self.window, height=80)
+        header.pack(fill=tk.X, padx=20, pady=15)
         
         title = ttk.Label(header, text="ROCKET 3D RENDERER - Configuration", 
-                         font=("Arial", 12, "bold"))
+                         font=("Arial", 14, "bold"))
         title.pack()
         
-        subtitle = ttk.Label(header, text="Setup Camera atau Object - Bebas urutan! Matplotlib ditampilkan di samping",
-                            font=("Arial", 9))
+        subtitle = ttk.Label(header, text="Matplotlib 3D & 2D ditampilkan di samping - Input di sini",
+                            font=("Arial", 10))
         subtitle.pack()
         
-        # Main container dengan scrollbar
-        canvas_container = tk.Canvas(self.window)
-        scrollbar = ttk.Scrollbar(self.window, orient="vertical", command=canvas_container.yview)
-        scrollable_frame = ttk.Frame(canvas_container)
+        # Tab selector buttons
+        selector_frame = ttk.Frame(header)
+        selector_frame.pack(pady=10)
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas_container.configure(scrollregion=canvas_container.bbox("all"))
-        )
+        ttk.Button(selector_frame, text="Camera Setup", 
+                  command=lambda: self.show_tab("camera")).pack(side=tk.LEFT, padx=10)
+        ttk.Button(selector_frame, text="Object Setup", 
+                  command=lambda: self.show_tab("object")).pack(side=tk.LEFT, padx=10)
+        ttk.Button(selector_frame, text="Load Config", 
+                  command=lambda: self.show_tab("load")).pack(side=tk.LEFT, padx=10)
         
-        canvas_container.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas_container.configure(yscrollcommand=scrollbar.set)
-        
-        # Tab setup dengan 3 tab
-        notebook = ttk.Notebook(scrollable_frame)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Tab 1: Camera Setup
-        self.camera_frame = ttk.Frame(notebook)
-        notebook.add(self.camera_frame, text="Camera Setup")
-        self.setup_camera_tab()
-        
-        # Tab 2: Object Setup
-        self.object_frame = ttk.Frame(notebook)
-        notebook.add(self.object_frame, text="Object Setup")
-        self.setup_object_tab()
-        
-        # Tab 3: Load Config
-        self.load_frame = ttk.Frame(notebook)
-        notebook.add(self.load_frame, text="Load Config")
-        self.setup_load_tab()
+        # Main content area
+        self.content_frame = ttk.Frame(self.window)
+        self.content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
         
         # Bottom buttons
-        btn_frame = ttk.Frame(scrollable_frame)
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+        btn_frame = ttk.Frame(self.window)
+        btn_frame.pack(fill=tk.X, padx=20, pady=15)
         
         ttk.Button(btn_frame, text="Apply & Render", 
-                  command=self.apply_config).pack(side=tk.RIGHT, padx=5)
+                  command=self.apply_config).pack(side=tk.RIGHT, padx=10)
         ttk.Button(btn_frame, text="Cancel", 
-                  command=self.cancel).pack(side=tk.RIGHT, padx=5)
+                  command=self.cancel).pack(side=tk.RIGHT, padx=10)
         
         # Status
-        self.status = ttk.Label(scrollable_frame, text="Status: Ready", 
-                               font=("Arial", 8), foreground="blue")
-        self.status.pack(fill=tk.X, padx=10, pady=5)
+        self.status = ttk.Label(self.window, text="Status: Ready", 
+                               font=("Arial", 9), foreground="blue")
+        self.status.pack(fill=tk.X, padx=20, pady=5)
         
-        canvas_container.pack(fill=tk.BOTH, expand=True)
-        scrollbar.pack(side="right", fill="y")
+        # Show first tab
+        self.show_tab("camera")
+    
+    def clear_content(self):
+        """Bersihkan content frame"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+    
+    def show_tab(self, tab_name):
+        """Tampilkan tab yang dipilih"""
+        self.current_tab = tab_name
+        self.clear_content()
+        
+        if tab_name == "camera":
+            self.setup_camera_tab()
+        elif tab_name == "object":
+            self.setup_object_tab()
+        elif tab_name == "load":
+            self.setup_load_tab()
     
     def setup_camera_tab(self):
         """Tab untuk camera setup"""
-        # Buat scrollbar untuk camera tab
-        canvas = tk.Canvas(self.camera_frame)
-        scrollbar = ttk.Scrollbar(self.camera_frame, orient="vertical", command=canvas.yview)
+        # Main container dengan scrollbar
+        canvas = tk.Canvas(self.content_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.content_frame, orient="vertical", command=canvas.yview)
         scrollable = ttk.Frame(canvas)
         
         scrollable.bind(
@@ -113,70 +114,79 @@ class GUIInput:
         canvas.create_window((0, 0), window=scrollable, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # Posisi
-        pos_frame = ttk.LabelFrame(scrollable, text="Position (X, Y, Z)", padding=8)
-        pos_frame.pack(fill=tk.X, padx=10, pady=5)
+        # ===== POSISI =====
+        pos_frame = ttk.LabelFrame(scrollable, text="CAMERA POSITION", padding=15)
+        pos_frame.pack(fill=tk.X, padx=15, pady=15)
+        
+        # Input row
+        input_row = ttk.Frame(pos_frame)
+        input_row.pack(fill=tk.X, pady=10)
         
         self.cam_x = tk.DoubleVar(value=0.0)
         self.cam_y = tk.DoubleVar(value=0.0)
         self.cam_z = tk.DoubleVar(value=-150.0)
         
-        ttk.Label(pos_frame, text="X:").pack(side=tk.LEFT, padx=3)
-        ttk.Entry(pos_frame, textvariable=self.cam_x, width=8).pack(side=tk.LEFT, padx=3)
+        ttk.Label(input_row, text="X:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(input_row, textvariable=self.cam_x, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(pos_frame, text="Y:").pack(side=tk.LEFT, padx=3)
-        ttk.Entry(pos_frame, textvariable=self.cam_y, width=8).pack(side=tk.LEFT, padx=3)
+        ttk.Label(input_row, text="Y:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(input_row, textvariable=self.cam_y, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(pos_frame, text="Z:").pack(side=tk.LEFT, padx=3)
-        ttk.Entry(pos_frame, textvariable=self.cam_z, width=8).pack(side=tk.LEFT, padx=3)
+        ttk.Label(input_row, text="Z:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(input_row, textvariable=self.cam_z, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Button(pos_frame, text="Save Pos", command=self.save_camera).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(input_row, text="Save Position", command=self.save_camera).pack(side=tk.RIGHT, padx=15)
         
-        # Rotasi
-        rot_frame = ttk.LabelFrame(scrollable, text="Rotation (Pitch, Yaw)", padding=8)
-        rot_frame.pack(fill=tk.X, padx=10, pady=5)
+        # ===== ROTASI =====
+        rot_frame = ttk.LabelFrame(scrollable, text="CAMERA ROTATION", padding=15)
+        rot_frame.pack(fill=tk.X, padx=15, pady=15)
+        
+        rot_row = ttk.Frame(rot_frame)
+        rot_row.pack(fill=tk.X, pady=10)
         
         self.cam_pitch = tk.DoubleVar(value=0.0)
         self.cam_yaw = tk.DoubleVar(value=0.0)
         
-        ttk.Label(rot_frame, text="Pitch:").pack(side=tk.LEFT, padx=3)
-        ttk.Entry(rot_frame, textvariable=self.cam_pitch, width=8).pack(side=tk.LEFT, padx=3)
+        ttk.Label(rot_row, text="Pitch (X):", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(rot_row, textvariable=self.cam_pitch, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(rot_frame, text="Yaw:").pack(side=tk.LEFT, padx=3)
-        ttk.Entry(rot_frame, textvariable=self.cam_yaw, width=8).pack(side=tk.LEFT, padx=3)
+        ttk.Label(rot_row, text="Yaw (Y):", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(rot_row, textvariable=self.cam_yaw, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Button(rot_frame, text="Update", command=self.update_vis).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(rot_row, text="Update View", command=self.update_vis).pack(side=tk.RIGHT, padx=15)
         
-        # Animation points
-        anim_frame = ttk.LabelFrame(scrollable, text="Animation Points", padding=8)
-        anim_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        # ===== ANIMATION POINTS =====
+        anim_frame = ttk.LabelFrame(scrollable, text="CAMERA ANIMATION POINTS", padding=15)
+        anim_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # Listbox
-        list_frame = ttk.Frame(anim_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True)
+        # Listbox dengan scrollbar
+        list_container = ttk.Frame(anim_frame)
+        list_container.pack(fill=tk.BOTH, expand=True, pady=10)
         
-        scrollbar2 = ttk.Scrollbar(list_frame)
+        scrollbar2 = ttk.Scrollbar(list_container)
         scrollbar2.pack(side=tk.RIGHT, fill=tk.Y)
         
-        self.cam_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar2.set, height=4)
-        self.cam_listbox.pack(fill=tk.BOTH, expand=True)
+        self.cam_listbox = tk.Listbox(list_container, yscrollcommand=scrollbar2.set, 
+                                      font=("Arial", 10), height=8)
+        self.cam_listbox.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
         scrollbar2.config(command=self.cam_listbox.yview)
         
+        self.update_cam_listbox()
+        
         # Buttons
-        btn_frame = ttk.Frame(anim_frame)
-        btn_frame.pack(fill=tk.X, pady=5)
+        btn_row = ttk.Frame(anim_frame)
+        btn_row.pack(fill=tk.X, pady=10)
         
-        ttk.Button(btn_frame, text="Add", command=self.add_camera_point).pack(side=tk.LEFT, padx=3)
-        ttk.Button(btn_frame, text="Remove", command=self.remove_camera_point).pack(side=tk.LEFT, padx=3)
+        ttk.Button(btn_row, text="Add Point", command=self.add_camera_point).pack(side=tk.LEFT, padx=10)
+        ttk.Button(btn_row, text="Remove Selected", command=self.remove_camera_point).pack(side=tk.LEFT, padx=10)
         
-        canvas.pack(fill=tk.BOTH, expand=True)
-        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
     def setup_object_tab(self):
         """Tab untuk object setup"""
-        # Buat scrollbar
-        canvas = tk.Canvas(self.object_frame)
-        scrollbar = ttk.Scrollbar(self.object_frame, orient="vertical", command=canvas.yview)
+        canvas = tk.Canvas(self.content_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.content_frame, orient="vertical", command=canvas.yview)
         scrollable = ttk.Frame(canvas)
         
         scrollable.bind(
@@ -187,9 +197,9 @@ class GUIInput:
         canvas.create_window((0, 0), window=scrollable, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # Input fields
-        input_frame = ttk.LabelFrame(scrollable, text="Add Translation Point", padding=8)
-        input_frame.pack(fill=tk.X, padx=10, pady=5)
+        # ===== INPUT SECTION =====
+        input_frame = ttk.LabelFrame(scrollable, text="ADD TRANSLATION POINT", padding=15)
+        input_frame.pack(fill=tk.X, padx=15, pady=15)
         
         self.trans_x = tk.DoubleVar(value=0.0)
         self.trans_y = tk.DoubleVar(value=0.0)
@@ -197,68 +207,85 @@ class GUIInput:
         self.rot_pitch = tk.DoubleVar(value=0.0)
         self.rot_yaw = tk.DoubleVar(value=0.0)
         
-        ttk.Label(input_frame, text="X:").pack(side=tk.LEFT, padx=2)
-        ttk.Entry(input_frame, textvariable=self.trans_x, width=7).pack(side=tk.LEFT, padx=2)
+        # Row 1: XYZ
+        row1 = ttk.Frame(input_frame)
+        row1.pack(fill=tk.X, pady=10)
         
-        ttk.Label(input_frame, text="Y:").pack(side=tk.LEFT, padx=2)
-        ttk.Entry(input_frame, textvariable=self.trans_y, width=7).pack(side=tk.LEFT, padx=2)
+        ttk.Label(row1, text="X:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(row1, textvariable=self.trans_x, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(input_frame, text="Z:").pack(side=tk.LEFT, padx=2)
-        ttk.Entry(input_frame, textvariable=self.trans_z, width=7).pack(side=tk.LEFT, padx=2)
+        ttk.Label(row1, text="Y:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(row1, textvariable=self.trans_y, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(input_frame, text="P:").pack(side=tk.LEFT, padx=2)
-        ttk.Entry(input_frame, textvariable=self.rot_pitch, width=7).pack(side=tk.LEFT, padx=2)
+        ttk.Label(row1, text="Z:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(row1, textvariable=self.trans_z, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(input_frame, text="Y:").pack(side=tk.LEFT, padx=2)
-        ttk.Entry(input_frame, textvariable=self.rot_yaw, width=7).pack(side=tk.LEFT, padx=2)
+        # Row 2: Rotation
+        row2 = ttk.Frame(input_frame)
+        row2.pack(fill=tk.X, pady=10)
         
-        ttk.Button(input_frame, text="Add", command=self.add_translation_point).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row2, text="Pitch:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(row2, textvariable=self.rot_pitch, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        # Translation listbox
-        trans_frame = ttk.LabelFrame(scrollable, text="Translation Points", padding=8)
-        trans_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        ttk.Label(row2, text="Yaw:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
+        ttk.Entry(row2, textvariable=self.rot_yaw, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        list_frame = ttk.Frame(trans_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True)
+        ttk.Button(row2, text="Add Translation Point", command=self.add_translation_point).pack(side=tk.RIGHT, padx=15)
         
-        scrollbar2 = ttk.Scrollbar(list_frame)
+        # ===== TRANSLATION POINTS LIST =====
+        trans_frame = ttk.LabelFrame(scrollable, text="TRANSLATION POINTS", padding=15)
+        trans_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        list_container = ttk.Frame(trans_frame)
+        list_container.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        scrollbar2 = ttk.Scrollbar(list_container)
         scrollbar2.pack(side=tk.RIGHT, fill=tk.Y)
         
-        self.trans_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar2.set, height=4)
-        self.trans_listbox.pack(fill=tk.BOTH, expand=True)
+        self.trans_listbox = tk.Listbox(list_container, yscrollcommand=scrollbar2.set, 
+                                       font=("Arial", 10), height=8)
+        self.trans_listbox.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
         scrollbar2.config(command=self.trans_listbox.yview)
         
-        # Buttons
-        btn_frame = ttk.Frame(trans_frame)
-        btn_frame.pack(fill=tk.X, pady=5)
+        self.update_trans_listbox()
         
-        ttk.Button(btn_frame, text="Remove", command=self.remove_translation_point).pack(side=tk.LEFT, padx=3)
+        btn_row = ttk.Frame(trans_frame)
+        btn_row.pack(fill=tk.X, pady=10)
         
-        # Frame count
-        frame_frame = ttk.LabelFrame(scrollable, text="Render Settings", padding=8)
-        frame_frame.pack(fill=tk.X, padx=10, pady=5)
+        ttk.Button(btn_row, text="Remove Selected", command=self.remove_translation_point).pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(frame_frame, text="Total Frames:").pack(side=tk.LEFT, padx=5)
+        # ===== RENDER SETTINGS =====
+        frame_frame = ttk.LabelFrame(scrollable, text="RENDER SETTINGS", padding=15)
+        frame_frame.pack(fill=tk.X, padx=15, pady=15)
+        
+        frame_row = ttk.Frame(frame_frame)
+        frame_row.pack(fill=tk.X, pady=10)
+        
+        ttk.Label(frame_row, text="Total Frames:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
         self.frame_var = tk.IntVar(value=1)
-        ttk.Spinbox(frame_frame, from_=1, to=100, textvariable=self.frame_var, width=8).pack(side=tk.LEFT, padx=5)
-        ttk.Button(frame_frame, text="Save", command=self.save_object).pack(side=tk.RIGHT, padx=5)
+        ttk.Spinbox(frame_row, from_=1, to=100, textvariable=self.frame_var, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
         
-        canvas.pack(fill=tk.BOTH, expand=True)
-        scrollbar.pack(side="right", fill="y")
+        ttk.Button(frame_row, text="Save Settings", command=self.save_object).pack(side=tk.RIGHT, padx=15)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
     def setup_load_tab(self):
         """Tab untuk load config"""
-        info = ttk.Label(self.load_frame, 
-                        text="Load konfigurasi yang sudah tersimpan",
-                        font=("Arial", 10), justify=tk.CENTER)
-        info.pack(pady=30)
+        frame = ttk.Frame(self.content_frame)
+        frame.pack(fill=tk.BOTH, expand=True)
         
-        ttk.Button(self.load_frame, text="Load Configuration",
-                  command=self.load_config).pack(pady=20)
+        info = ttk.Label(frame, 
+                        text="Load existing configuration dari file",
+                        font=("Arial", 12))
+        info.pack(pady=50)
         
-        self.load_status = ttk.Label(self.load_frame, text="", font=("Arial", 9), 
+        ttk.Button(frame, text="Load Configuration",
+                  command=self.load_config).pack(pady=30)
+        
+        self.load_status = ttk.Label(frame, text="", font=("Arial", 10), 
                                     foreground="green")
-        self.load_status.pack(pady=10)
+        self.load_status.pack(pady=20)
     
     def update_vis(self):
         """Update matplotlib visualization"""
@@ -304,7 +331,7 @@ class GUIInput:
             label = "CAM_START" if i == 0 else ("CAM_END" if i == len(self.camera_translation_points)-1 else f"P{i}")
             rot = self.camera_rotations[i] if i < len(self.camera_rotations) else {"x": 0, "y": 0}
             self.cam_listbox.insert(tk.END, 
-                f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) P={rot['x']:.0f}° Y={rot['y']:.0f}°")
+                f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) Pitch={rot['x']:.0f}° Yaw={rot['y']:.0f}°")
     
     def add_translation_point(self):
         """Tambah translation point"""
@@ -336,7 +363,7 @@ class GUIInput:
         for i, p in enumerate(self.translation_points):
             label = "START" if i == 0 else ("END" if i == len(self.translation_points)-1 else f"P{i}")
             rot = self.rotations[i] if i < len(self.rotations) else {"x": 0, "y": 0}
-            self.trans_listbox.insert(tk.END, f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) P={rot['x']:.0f}° Y={rot['y']:.0f}°")
+            self.trans_listbox.insert(tk.END, f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) Pitch={rot['x']:.0f}° Yaw={rot['y']:.0f}°")
     
     def save_camera(self):
         """Save camera settings"""
@@ -360,7 +387,6 @@ class GUIInput:
         try:
             self.config.load()
             
-            # Load camera
             cam_settings = self.config.get_camera_settings()
             self.camera_position = cam_settings["translation"]["position"]
             self.camera_rotation = {
@@ -377,7 +403,6 @@ class GUIInput:
                     "y": point["rotation"]["yaw"]
                 })
             
-            # Load object
             obj_points = self.config.get_animation_points()
             self.translation_points = []
             self.rotations = []
@@ -390,7 +415,7 @@ class GUIInput:
             
             self.total_frames = self.config.get_render_settings()["total_frames"]
             
-            self.load_status.config(text="✓ Configuration loaded!")
+            self.load_status.config(text="✓ Configuration loaded successfully!")
             self.status.config(text="Status: Configuration loaded")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load: {e}")
@@ -430,7 +455,7 @@ class GUIInput:
     
     def cancel(self):
         """Cancel"""
-        if messagebox.askyesno("Cancel", "Batalkan?"):
+        if messagebox.askyesno("Cancel", "Batalkan konfigurasi?"):
             self.result = None
             self.window.destroy()
     
