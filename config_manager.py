@@ -3,59 +3,83 @@ import os
 from typing import List, Dict, Any
 
 class ConfigManager:
-    """Manages configuration for rocket animation"""
+    """Manages configuration for rocket animation with detailed tracking"""
     
     def __init__(self, config_file: str = "animation_config.json"):
         self.config_file = config_file
         self.config = self._load_default_config()
     
     def _load_default_config(self) -> Dict[str, Any]:
-        """Load default configuration"""
+        """Load default configuration with detailed structure"""
         return {
-            "translation": {
-                "points": [],
-                "scales": [],
-                "rotations": []
+            "metadata": {
+                "version": "2.0",
+                "description": "Rocket 3D Animation Configuration"
             },
-            "rotation": {
-                "loop": False
+            "object": {
+                "type": "rocket",
+                "animation_points": []
             },
             "camera": {
-                "position": [50, 50, 100],
-                "target": [0, 0, 0]
+                "translation": {
+                    "position": [0.0, 0.0, -150.0],
+                    "description": "Camera position in world space (X, Y, Z)"
+                },
+                "rotation": {
+                    "pitch": 0.0,
+                    "yaw": 0.0,
+                    "description": "Camera rotation - Pitch (X-axis), Yaw (Y-axis) in degrees"
+                }
+            },
+            "canvas": {
+                "width": 640,
+                "height": 480,
+                "fov": 50,
+                "description": "Render canvas dimensions and field of view"
             },
             "render": {
                 "total_frames": 1,
-                "interpolate": False
+                "description": "Number of frames to render"
             }
         }
     
-    def add_translation_point(self, x: float, y: float, z: float, scale: float = 1.0, rotation: Dict[str, float] = None):
-        """Add translation point with scale and rotation"""
-        self.config["translation"]["points"].append([x, y, z])
-        self.config["translation"]["scales"].append(scale)
-        if rotation is None:
-            rotation = {"x": 0.0, "y": 0.0, "z": 0.0}
-        self.config["translation"]["rotations"].append(rotation)
+    def add_animation_point(self, translation: List[float], rotation: Dict[str, float]):
+        """Add animation point with object translation and rotation
+        
+        Args:
+            translation: [x, y, z] position of object
+            rotation: {"x": pitch, "y": yaw} rotation in degrees (Z removed)
+        """
+        self.config["object"]["animation_points"].append({
+            "translation": {
+                "position": [float(x) for x in translation],
+                "description": "Object translation in world space (X, Y, Z)"
+            },
+            "rotation": {
+                "pitch": float(rotation.get('x', 0.0)),
+                "yaw": float(rotation.get('y', 0.0)),
+                "description": "Object rotation - Pitch (X-axis), Yaw (Y-axis) in degrees"
+            }
+        })
     
-    def set_rotation_loop(self, loop: bool = False):
-        """Set rotation loop parameter"""
-        self.config["rotation"]["loop"] = loop
+    def set_camera_translation(self, position: List[float]):
+        """Set camera translation position"""
+        self.config["camera"]["translation"]["position"] = [float(x) for x in position]
     
-    def set_rotation(self, x: float, y: float, z: float, loop: bool = False):
-        """Set rotation parameters (legacy support)"""
-        self.config["rotation"]["loop"] = loop
+    def set_camera_rotation(self, pitch: float, yaw: float):
+        """Set camera rotation (pitch and yaw only)"""
+        self.config["camera"]["rotation"]["pitch"] = float(pitch)
+        self.config["camera"]["rotation"]["yaw"] = float(yaw)
     
-    def set_render_settings(self, total_frames: int = 1, interpolate: bool = False):
+    def set_render_settings(self, total_frames: int = 1):
         """Set render settings"""
-        self.config["render"] = {
-            "total_frames": max(1, total_frames),
-            "interpolate": interpolate
-        }
+        self.config["render"]["total_frames"] = max(1, int(total_frames))
     
-    def get_render_settings(self) -> Dict[str, Any]:
-        """Get render settings"""
-        return self.config.get("render", {"total_frames": 1, "interpolate": False})
+    def set_canvas_settings(self, width: int = 640, height: int = 480, fov: int = 50):
+        """Set canvas settings"""
+        self.config["canvas"]["width"] = int(width)
+        self.config["canvas"]["height"] = int(height)
+        self.config["canvas"]["fov"] = int(fov)
     
     def save(self):
         """Save configuration to file"""
@@ -66,62 +90,38 @@ class ConfigManager:
         print(f"\n✓ Configuration saved to {config_path}")
     
     def load(self):
-        """Load configuration from file with backward compatibility"""
+        """Load configuration from file"""
         config_path = os.path.join("result", self.config_file)
         if os.path.exists(config_path):
             with open(config_path, 'r') as f:
-                self.config = json.load(f)
-            
-            if "rotations" not in self.config.get("translation", {}):
-                self.config["translation"]["rotations"] = []
-            
-            points = self.config.get("translation", {}).get("points", [])
-            rotations = self.config["translation"]["rotations"]
-            
-            if len(rotations) < len(points):
-                legacy_rotation = self.config.get("rotation", {})
-                rot_x = legacy_rotation.get("x", 0.0)
-                rot_y = legacy_rotation.get("y", 0.0)
-                rot_z = legacy_rotation.get("z", 0.0)
-                
-                for _ in range(len(points) - len(rotations)):
-                    rotations.append({"x": rot_x, "y": rot_y, "z": rot_z})
-            
-            scales = self.config.get("translation", {}).get("scales", [])
-            if len(scales) < len(points):
-                for _ in range(len(points) - len(scales)):
-                    scales.append(1.0)
-                self.config["translation"]["scales"] = scales
-            
-            if "render" not in self.config:
-                self.config["render"] = {"total_frames": 1, "interpolate": False}
-            
+                loaded = json.load(f)
+                # Merge with defaults to ensure compatibility
+                self.config = self._merge_configs(self._load_default_config(), loaded)
             print(f"✓ Configuration loaded from {config_path}")
         return self.config
     
-    def get_translation_points(self) -> List[List[float]]:
-        """Get translation points"""
-        return self.config["translation"]["points"]
+    def _merge_configs(self, default: Dict, loaded: Dict) -> Dict:
+        """Merge loaded config with defaults"""
+        merged = default.copy()
+        for key in loaded:
+            if key in merged and isinstance(merged[key], dict) and isinstance(loaded[key], dict):
+                merged[key] = {**merged[key], **loaded[key]}
+            else:
+                merged[key] = loaded[key]
+        return merged
     
-    def get_scales(self) -> List[float]:
-        """Get scales for each point"""
-        return self.config["translation"]["scales"]
-    
-    def get_rotation(self) -> Dict[str, Any]:
-        """Get rotation parameters"""
-        return self.config["rotation"]
-    
-    def get_rotations(self) -> List[Dict[str, float]]:
-        """Get rotations for each point"""
-        return self.config["translation"].get("rotations", [])
-    
-    def set_camera_settings(self, settings: Dict[str, Any]):
-        """Set camera settings (position and rotation)"""
-        self.config["camera"] = settings
+    def get_animation_points(self) -> List[Dict]:
+        """Get all animation points"""
+        return self.config["object"]["animation_points"]
     
     def get_camera_settings(self) -> Dict[str, Any]:
         """Get camera settings"""
-        return self.config.get("camera", {
-            "position": [0, 0, -150],
-            "rotation": {"x": 0, "y": 0, "z": 0}
-        })
+        return self.config["camera"]
+    
+    def get_canvas_settings(self) -> Dict[str, Any]:
+        """Get canvas settings"""
+        return self.config["canvas"]
+    
+    def get_render_settings(self) -> Dict[str, Any]:
+        """Get render settings"""
+        return self.config["render"]

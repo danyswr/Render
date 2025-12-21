@@ -4,9 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from typing import List, Optional, Dict
+from rocket_model import RocketModel
+from transform import Transform
 
 class Visualizer:
-    """Handles all visualization using Matplotlib - Clean dual view (3D Scene + 2D Camera POV)"""
+    """Handles visualization with real rocket model rendering"""
     
     def __init__(self):
         plt.ion()
@@ -15,9 +17,13 @@ class Visualizer:
         self.ax_camera = None
         
         self.camera_position = np.array([0.0, 0.0, -150.0])
-        self.camera_rotation = {"x": 0.0, "y": 0.0, "z": 0.0}
-        self.camera_target = np.array([0.0, 0.0, 0.0])
+        self.camera_rotation = {"x": 0.0, "y": 0.0}
         self.fov = 60
+        
+        # Build rocket model once
+        self.rocket_model = RocketModel(col=320, row=450, length=320)
+        self.voxel_data = self.rocket_model.build()
+        self.rocket_centroid = self.rocket_model.get_centroid()
     
     def _ensure_figure(self):
         """Ensure dual figure exists: 3D scene (left) + 2D camera POV (right)"""
@@ -33,11 +39,8 @@ class Visualizer:
     def set_camera_position(self, x: float, y: float, z: float):
         self.camera_position = np.array([x, y, z])
     
-    def set_camera_rotation(self, rot_x: float, rot_y: float, rot_z: float):
-        self.camera_rotation = {"x": rot_x, "y": rot_y, "z": rot_z}
-    
-    def set_camera_target(self, x: float, y: float, z: float):
-        self.camera_target = np.array([x, y, z])
+    def set_camera_rotation(self, rot_x: float, rot_y: float):
+        self.camera_rotation = {"x": rot_x, "y": rot_y}
     
     def _add_grid_3d(self, ax, limit=50):
         """Add simple grid to 3D axis"""
@@ -51,7 +54,7 @@ class Visualizer:
         ax.set_zlim([-limit, limit])
     
     def _draw_camera_indicator(self, ax, limit=50):
-        """Draw camera as bigger sphere with direction arrow"""
+        """Draw camera as sphere with direction arrow"""
         cam_x, cam_y, cam_z = self.camera_position
         
         u = np.linspace(0, 2 * np.pi, 20)
@@ -65,12 +68,10 @@ class Visualizer:
         forward = np.array([0, 0, 1])
         rx = np.radians(self.camera_rotation['x'])
         ry = np.radians(self.camera_rotation['y'])
-        rz = np.radians(self.camera_rotation['z'])
         
         Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
         Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
-        Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
-        R = Rz @ Ry @ Rx
+        R = Ry @ Rx
         
         forward = R @ forward
         arrow_len = max(limit * 0.25, 20)
@@ -82,6 +83,43 @@ class Visualizer:
         ax.text(cam_x, cam_y, cam_z + cam_radius + 5, 'KAMERA', fontsize=9, 
                 fontweight='bold', color='purple', ha='center')
     
+    def _draw_rocket_3d(self, ax, position: List[float], rotation: Dict):
+        """Draw rocket model in 3D space"""
+        # Get voxel indices
+        y_i, x_i, z_i = np.where(np.sum(self.voxel_data, axis=3) > 10)
+        
+        if len(y_i) == 0:
+            return
+        
+        # Sample voxels for visualization (not all of them)
+        sample_indices = np.random.choice(len(y_i), size=min(len(y_i), 1000), replace=False)
+        
+        for idx in sample_indices:
+            y, x, z = y_i[idx], x_i[idx], z_i[idx]
+            color = self.voxel_data[y, x, z] / 255.0
+            
+            # Transform point
+            x_local = x - self.rocket_centroid[0]
+            y_local = y - self.rocket_centroid[1]
+            z_local = z - self.rocket_centroid[2]
+            
+            # Apply rotation
+            rx = np.radians(rotation.get('x', 0))
+            ry = np.radians(rotation.get('y', 0))
+            
+            Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
+            Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
+            R = Ry @ Rx
+            
+            point = R @ np.array([x_local, y_local, z_local])
+            
+            # Apply translation
+            world_x = position[0] + point[0]
+            world_y = position[1] + point[1]
+            world_z = position[2] + point[2]
+            
+            ax.scatter(world_x, world_y, world_z, c=[color], s=1, alpha=0.6)
+    
     def _get_camera_transform(self):
         """Get camera transformation matrix"""
         cam_pos = self.camera_position
@@ -89,189 +127,115 @@ class Visualizer:
         
         rx_rad = np.radians(cam_rot['x'])
         ry_rad = np.radians(cam_rot['y'])
-        rz_rad = np.radians(cam_rot['z'])
         
         Rx = np.array([[1,0,0],[0,np.cos(rx_rad),-np.sin(rx_rad)],[0,np.sin(rx_rad),np.cos(rx_rad)]])
         Ry = np.array([[np.cos(ry_rad),0,np.sin(ry_rad)],[0,1,0],[-np.sin(ry_rad),0,np.cos(ry_rad)]])
-        Rz = np.array([[np.cos(rz_rad),-np.sin(rz_rad),0],[np.sin(rz_rad),np.cos(rz_rad),0],[0,0,1]])
-        R_cam = Rz @ Ry @ Rx
+        R_cam = Ry @ Rx
         R_cam_inv = R_cam.T
         
         return R_cam_inv, cam_pos
     
-    def _project_to_2d(self, world_point, R_cam_inv, cam_pos):
-        """Project 3D world point to 2D camera view"""
-        translated = np.array(world_point) - cam_pos
-        cam_space = R_cam_inv @ translated
-        
-        z = cam_space[2]
-        if z <= 0.1:
-            return None, None, None, False
-        
-        fov_rad = np.radians(self.fov)
-        f = 1.0 / np.tan(fov_rad / 2)
-        
-        x_2d = (cam_space[0] / z) * f
-        y_2d = (cam_space[1] / z) * f
-        
-        return x_2d, y_2d, cam_space, True
-    
-    def _get_visible_color_from_camera(self, world_pos, rotation, R_cam_inv, cam_pos):
-        """Determine which color of the sphere is visible from camera perspective
-        Must match _draw_oriented_sphere color assignment exactly
-        """
-        world_pos = np.array(world_pos)
-        
-        # Build object rotation matrix - SAME as _draw_oriented_sphere
-        rx = np.radians(rotation.get('x', 0))
-        ry = np.radians(rotation.get('y', 0))
-        rz = np.radians(rotation.get('z', 0))
-        
-        Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
-        Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
-        Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
-        R_obj = Rz @ Ry @ Rx
-        
-        # Direction from object to camera in world space
-        cam_dir = cam_pos - world_pos
-        cam_dir_norm = np.linalg.norm(cam_dir)
-        if cam_dir_norm < 0.001:
-            return 'gray'
-        cam_dir = cam_dir / cam_dir_norm
-        
-        # Transform camera direction to object's local space (inverse rotation)
-        R_obj_inv = R_obj.T
-        local_cam_dir = R_obj_inv @ cam_dir
-        
-        # Now find which face the camera is looking at based on local direction
-        lx, ly, lz = local_cam_dir
-        
-        # Same logic as _draw_oriented_sphere color assignment
-        if abs(lz) >= abs(lx) and abs(lz) >= abs(ly):
-            if lz > 0:
-                return 'yellow'   # +Z front (camera sees front)
-            else:
-                return 'red'      # -Z back
-        elif abs(lx) >= abs(ly):
-            if lx > 0:
-                return 'green'    # +X right
-            else:
-                return 'blue'     # -X left
-        else:
-            if ly > 0:
-                return 'lightgray'  # +Y top
-            else:
-                return 'darkgray'   # -Y bottom
-    
-    def _draw_camera_pov_2d(self, ax, objects_positions: List[List[float]], rotations: List[Dict] = None):
-        """Draw clean 2D camera POV - shows what camera sees with correct colors"""
+    def _render_rocket_to_camera_view(self, ax, position: List[float], rotation: Dict):
+        """Render actual rocket as seen from camera"""
         R_cam_inv, cam_pos = self._get_camera_transform()
         
-        ax.set_facecolor('white')
-        ax.set_xlim([-2, 2])
-        ax.set_ylim([-1.5, 1.5])
-        ax.set_aspect('equal')
-        ax.grid(True, alpha=0.3, linestyle='-', color='gray')
-        ax.axhline(y=0, color='gray', linewidth=0.5, alpha=0.5)
-        ax.axvline(x=0, color='gray', linewidth=0.5, alpha=0.5)
+        # Get voxel indices
+        y_i, x_i, z_i = np.where(np.sum(self.voxel_data, axis=3) > 10)
         
-        ax.set_xlabel('X', fontsize=9)
-        ax.set_ylabel('Y', fontsize=9)
+        if len(y_i) == 0:
+            return
         
-        if len(objects_positions) > 0:
-            projected = []
-            for i, point in enumerate(objects_positions):
-                x_2d, y_2d, cam_space, visible = self._project_to_2d(point, R_cam_inv, cam_pos)
-                if visible:
-                    rot = rotations[i] if rotations and i < len(rotations) else {"x": 0, "y": 0, "z": 0}
-                    visible_color = self._get_visible_color_from_camera(point, rot, R_cam_inv, cam_pos)
-                    distance = np.linalg.norm(cam_space)
-                    projected.append((x_2d, y_2d, i, point, rot, visible_color, distance))
+        pixels_2d = {}
+        depth_buffer = {}
+        
+        # Sample voxels
+        sample_indices = np.random.choice(len(y_i), size=min(len(y_i), 2000), replace=False)
+        
+        for idx in sample_indices:
+            y, x, z = y_i[idx], x_i[idx], z_i[idx]
+            color = self.voxel_data[y, x, z] / 255.0
             
-            if len(projected) > 1:
-                xs = [p[0] for p in projected]
-                ys = [p[1] for p in projected]
-                ax.plot(xs, ys, 'k-', linewidth=1, alpha=0.5)
+            # Transform to world space
+            x_local = x - self.rocket_centroid[0]
+            y_local = y - self.rocket_centroid[1]
+            z_local = z - self.rocket_centroid[2]
             
-            for x_2d, y_2d, idx, world_pt, rot, visible_color, distance in projected:
-                size = max(0.3, 1.5 - distance / 200)
-                
-                circle = plt.Circle((x_2d, y_2d), size * 0.2, color=visible_color, alpha=0.9)
-                ax.add_patch(circle)
-                
-                edge = plt.Circle((x_2d, y_2d), size * 0.2, fill=False, 
-                                  edgecolor='black', linewidth=2)
-                ax.add_patch(edge)
-                
-                if idx == 0:
-                    label = "START"
-                elif idx == len(objects_positions) - 1 and len(objects_positions) > 1:
-                    label = "END"
-                else:
-                    label = f"P{idx}"
-                ax.annotate(label, (x_2d, y_2d), xytext=(8, 8), 
-                           textcoords='offset points', fontsize=9, fontweight='bold')
+            rx = np.radians(rotation.get('x', 0))
+            ry = np.radians(rotation.get('y', 0))
+            
+            Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
+            Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
+            R = Ry @ Rx
+            
+            point = R @ np.array([x_local, y_local, z_local])
+            world_x = position[0] + point[0]
+            world_y = position[1] + point[1]
+            world_z = position[2] + point[2]
+            
+            # Transform to camera space
+            translated = np.array([world_x, world_y, world_z]) - cam_pos
+            cam_space = R_cam_inv @ translated
+            
+            cam_z = cam_space[2]
+            if cam_z <= 0.1:
+                continue
+            
+            # Project to 2D
+            fov_rad = np.radians(self.fov)
+            f = 1.0 / np.tan(fov_rad / 2)
+            x_2d = (cam_space[0] / cam_z) * f
+            y_2d = (cam_space[1] / cam_z) * f
+            
+            # Round to pixel
+            px = int(x_2d * 100)
+            py = int(y_2d * 100)
+            
+            # Depth test
+            if (px, py) not in depth_buffer or cam_z < depth_buffer[(px, py)]:
+                pixels_2d[(px, py)] = color
+                depth_buffer[(px, py)] = cam_z
+        
+        # Draw pixels
+        for (px, py), color in pixels_2d.items():
+            ax.scatter(px / 100.0, py / 100.0, c=[color], s=2, alpha=0.7)
+    
+    def show_camera_setup_realtime(self, position: List[float], rotation: Dict):
+        """Show camera setup with real-time rocket rendering"""
+        self._ensure_figure()
+        
+        limit = 150
+        self._add_grid_3d(self.ax_scene, limit)
+        
+        # Draw rocket at origin
+        self._draw_rocket_3d(self.ax_scene, position, rotation)
+        self._draw_camera_indicator(self.ax_scene, limit)
+        
+        self.ax_scene.set_title('Scene 3D - Object Position & Rotation', fontsize=10)
+        
+        # Camera view
+        self.ax_camera.set_facecolor('white')
+        self.ax_camera.set_xlim([-2, 2])
+        self.ax_camera.set_ylim([-1.5, 1.5])
+        self.ax_camera.set_aspect('equal')
+        self.ax_camera.grid(True, alpha=0.3)
+        self.ax_camera.set_xlabel('X')
+        self.ax_camera.set_ylabel('Y')
+        
+        self._render_rocket_to_camera_view(self.ax_camera, position, rotation)
         
         cam_rot = self.camera_rotation
-        title = f'Sudut Pandang Kamera (2D)\n'
-        title += f'Pos: ({self.camera_position[0]:.0f}, {self.camera_position[1]:.0f}, {self.camera_position[2]:.0f}) | '
-        title += f'Rot: ({cam_rot["x"]:.0f}, {cam_rot["y"]:.0f}, {cam_rot["z"]:.0f})'
-        ax.set_title(title, fontsize=10)
+        cam_pos = self.camera_position
+        title = f'Camera View (2D Projection)\n'
+        title += f'Cam Pos: ({cam_pos[0]:.0f}, {cam_pos[1]:.0f}, {cam_pos[2]:.0f}) | '
+        title += f'Cam Rot: Pitch={cam_rot["x"]:.0f}° Yaw={cam_rot["y"]:.0f}°'
+        self.ax_camera.set_title(title, fontsize=9)
+        
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+        plt.pause(0.01)
     
-    def _draw_oriented_sphere(self, ax, position: List[float], radius: float, rotation: Dict):
-        """Draw colored sphere showing orientation
-        DEPAN(+Z)=Kuning, BELAKANG(-Z)=Merah, KANAN(+X)=Hijau, KIRI(-X)=Biru
-        Object faces camera (+Z direction) by default so camera sees KUNING (front)
-        """
-        phi = np.linspace(0, 2 * np.pi, 40)
-        theta = np.linspace(0, np.pi, 30)
-        
-        x_sphere = radius * np.outer(np.sin(theta), np.cos(phi)).T
-        y_sphere = radius * np.outer(np.sin(theta), np.sin(phi)).T
-        z_sphere = radius * np.outer(np.cos(theta), np.ones(len(phi))).T
-        
-        rx = np.radians(rotation.get('x', 0))
-        ry = np.radians(rotation.get('y', 0))
-        rz = np.radians(rotation.get('z', 0))
-        
-        Rx = np.array([[1,0,0],[0,np.cos(rx),-np.sin(rx)],[0,np.sin(rx),np.cos(rx)]])
-        Ry = np.array([[np.cos(ry),0,np.sin(ry)],[0,1,0],[-np.sin(ry),0,np.cos(ry)]])
-        Rz = np.array([[np.cos(rz),-np.sin(rz),0],[np.sin(rz),np.cos(rz),0],[0,0,1]])
-        R = Rz @ Ry @ Rx
-        
-        points = np.stack([x_sphere.flatten(), y_sphere.flatten(), z_sphere.flatten()])
-        rotated = R @ points
-        x_rot = position[0] + rotated[0].reshape(x_sphere.shape)
-        y_rot = position[1] + rotated[1].reshape(y_sphere.shape)
-        z_rot = position[2] + rotated[2].reshape(z_sphere.shape)
-        
-        colors = np.zeros(x_sphere.shape + (4,))
-        for i in range(len(phi)):
-            for j in range(len(theta)):
-                local_x = x_sphere[i, j]
-                local_y = y_sphere[i, j]
-                local_z = z_sphere[i, j]
-                
-                if abs(local_z) >= abs(local_x) and abs(local_z) >= abs(local_y):
-                    if local_z > 0:
-                        colors[i, j] = [1.0, 0.9, 0.2, 0.9]  # yellow +Z
-                    else:
-                        colors[i, j] = [1.0, 0.2, 0.2, 0.9]  # red -Z
-                elif abs(local_x) >= abs(local_y):
-                    if local_x > 0:
-                        colors[i, j] = [0.2, 0.8, 0.2, 0.9]  # green +X
-                    else:
-                        colors[i, j] = [0.2, 0.2, 1.0, 0.9]  # blue -X
-                else:
-                    if local_y > 0:
-                        colors[i, j] = [0.8, 0.8, 0.8, 0.9]  # lightgray +Y
-                    else:
-                        colors[i, j] = [0.5, 0.5, 0.5, 0.9]  # darkgray -Y
-        
-        ax.plot_surface(x_rot, y_rot, z_rot, facecolors=colors, shade=True)
-    
-    def show_translation_with_sphere(self, points: List[List[float]], current_point: Optional[List[float]] = None, rotations: List[Dict] = None):
-        """Show translation path with oriented spheres - bigger spheres"""
+    def show_translation_with_rocket(self, points: List[List[float]], current_point: Optional[List[float]] = None, rotations: List[Dict] = None):
+        """Show translation path with actual rocket models"""
         self._ensure_figure()
         
         all_coords = []
@@ -288,17 +252,17 @@ class Visualizer:
             max_coord = 50
         
         limit = int(max_coord)
-        sphere_radius = max(limit * 0.12, 12)
         
         self._add_grid_3d(self.ax_scene, limit)
         
         if rotations is None:
-            rotations = [{"x": 0, "y": 0, "z": 0} for _ in range(len(points) + (1 if current_point else 0))]
+            rotations = [{"x": 0, "y": 0} for _ in range(len(points) + (1 if current_point else 0))]
         
+        # Draw all rockets
         if len(points) > 0:
             for i, point in enumerate(points):
-                rot = rotations[i] if i < len(rotations) else {"x": 0, "y": 0, "z": 0}
-                self._draw_oriented_sphere(self.ax_scene, point, sphere_radius, rot)
+                rot = rotations[i] if i < len(rotations) else {"x": 0, "y": 0}
+                self._draw_rocket_3d(self.ax_scene, point, rot)
                 
                 if i == 0:
                     label = "START"
@@ -306,125 +270,40 @@ class Visualizer:
                     label = "END"
                 else:
                     label = f"P{i}"
-                self.ax_scene.text(point[0]+sphere_radius+2, point[1]+sphere_radius+2, 
-                                   point[2]+sphere_radius+2, label, fontsize=10, fontweight='bold')
+                self.ax_scene.text(point[0]+10, point[1]+10, point[2]+10, label, fontsize=10, fontweight='bold')
             
             if len(points) > 1:
                 pts = np.array(points)
                 self.ax_scene.plot(pts[:, 0], pts[:, 1], pts[:, 2], 'k-', linewidth=2, alpha=0.5)
         
         if current_point is not None:
-            rot = rotations[len(points)] if len(points) < len(rotations) else {"x": 0, "y": 0, "z": 0}
-            self._draw_oriented_sphere(self.ax_scene, current_point, sphere_radius * 1.2, rot)
-            self.ax_scene.text(current_point[0]+sphere_radius+2, current_point[1]+sphere_radius+2, 
-                              current_point[2]+sphere_radius+2, 
-                              'BARU', fontsize=10, fontweight='bold', color='orange')
-            
-            if len(points) > 0:
-                last = points[-1]
-                self.ax_scene.plot([last[0], current_point[0]], 
-                                   [last[1], current_point[1]], 
-                                   [last[2], current_point[2]], 
-                                   'k--', linewidth=2, alpha=0.5)
+            rot = rotations[len(points)] if len(points) < len(rotations) else {"x": 0, "y": 0}
+            self._draw_rocket_3d(self.ax_scene, current_point, rot)
+            self.ax_scene.text(current_point[0]+10, current_point[1]+10, current_point[2]+10, 
+                              'NEW', fontsize=10, fontweight='bold', color='orange')
         
         self._draw_camera_indicator(self.ax_scene, limit)
+        self.ax_scene.set_title('Scene 3D - Rocket Animation Path', fontsize=10)
         
-        self.ax_scene.set_title('Scene 3D\nKUNING=Depan, MERAH=Belakang, HIJAU=Kanan, BIRU=Kiri', fontsize=10)
+        # Camera view
+        self.ax_camera.set_facecolor('white')
+        self.ax_camera.set_xlim([-2, 2])
+        self.ax_camera.set_ylim([-1.5, 1.5])
+        self.ax_camera.set_aspect('equal')
+        self.ax_camera.grid(True, alpha=0.3)
         
-        self._draw_camera_pov_2d(self.ax_camera, points + ([current_point] if current_point else []), rotations)
+        all_display_points = points + ([current_point] if current_point else [])
+        all_display_rots = rotations[:len(all_display_points)]
         
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.pause(0.01)
-    
-    def show_translation_path(self, points: List[List[float]]):
-        self.show_translation_with_sphere(points, None)
-    
-    def show_scale_preview(self, position: List[float], scale: float, rotation: Dict = None):
-        """Show scale preview with oriented sphere"""
-        self._ensure_figure()
-        
-        if rotation is None:
-            rotation = {"x": 0, "y": 0, "z": 0}
-        
-        radius = max(scale * 12, 12)
-        self._draw_oriented_sphere(self.ax_scene, position, radius, rotation)
-        
-        max_range = max(np.abs(position).max() + radius * 2, np.abs(self.camera_position).max(), 50)
-        self._add_grid_3d(self.ax_scene, int(max_range))
-        self._draw_camera_indicator(self.ax_scene, int(max_range))
-        
-        title = f'Preview Skala: {scale:.2f}x\n'
-        title += f'Posisi: ({position[0]:.0f}, {position[1]:.0f}, {position[2]:.0f})'
-        self.ax_scene.set_title(title, fontsize=10)
-        
-        self._draw_camera_pov_2d(self.ax_camera, [position], [rotation])
-        
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.pause(0.01)
-    
-    def show_rotation_at_position(self, position: List[float], rot_x: float, rot_y: float, rot_z: float, point_label: str = ""):
-        """Show rotation preview with oriented sphere"""
-        self._ensure_figure()
-        
-        rotation = {"x": rot_x, "y": rot_y, "z": rot_z}
-        
-        max_range = max(np.abs(position).max() + 30, np.abs(self.camera_position).max(), 50)
-        sphere_radius = max(max_range * 0.15, 15)
-        
-        self._draw_oriented_sphere(self.ax_scene, position, sphere_radius, rotation)
-        
-        self._add_grid_3d(self.ax_scene, int(max_range))
-        self._draw_camera_indicator(self.ax_scene, int(max_range))
-        
-        title = f'Preview Rotasi - {point_label}\n'
-        title += f'X:{rot_x:.0f}° Y:{rot_y:.0f}° Z:{rot_z:.0f}°'
-        self.ax_scene.set_title(title, fontsize=10)
-        
-        self._draw_camera_pov_2d(self.ax_camera, [position], [rotation])
-        
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.pause(0.01)
-    
-    def show_rotation_preview(self, rot_x: float, rot_y: float, rot_z: float):
-        """Show rotation preview at origin"""
-        self.show_rotation_at_position([0, 0, 0], rot_x, rot_y, rot_z, "Origin")
-    
-    def show_camera_setup(self, object_positions: List[List[float]]):
-        """Show camera setup view"""
-        self._ensure_figure()
-        
-        all_coords = object_positions.copy() if object_positions else []
-        all_coords.append(self.camera_position.tolist())
-        
-        coords_array = np.array(all_coords)
-        max_coord = max(np.abs(coords_array).max() + 30, 50)
-        limit = int(max_coord)
-        sphere_radius = max(limit * 0.12, 12)
-        
-        self._add_grid_3d(self.ax_scene, limit)
-        
-        rotations = [{"x": 0, "y": 0, "z": 0} for _ in object_positions]
-        for i, pos in enumerate(object_positions):
-            self._draw_oriented_sphere(self.ax_scene, pos, sphere_radius, rotations[i])
-            self.ax_scene.text(pos[0]+sphere_radius+2, pos[1]+sphere_radius+2, 
-                              pos[2]+sphere_radius+2, f'P{i}', fontsize=10, fontweight='bold')
+        for i, (point, rot) in enumerate(zip(all_display_points, all_display_rots)):
+            self._render_rocket_to_camera_view(self.ax_camera, point, rot)
         
         self._draw_camera_indicator(self.ax_scene, limit)
-        
-        self.ax_scene.set_title('Pengaturan Kamera\nKUNING=Depan, MERAH=Belakang, HIJAU=Kanan, BIRU=Kiri', fontsize=10)
-        
-        self._draw_camera_pov_2d(self.ax_camera, object_positions, rotations)
+        self.ax_camera.set_title('Camera View - What Kamera Sees', fontsize=9)
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
         plt.pause(0.01)
-    
-    def save_current(self, filename: str):
-        if self.fig is not None:
-            self.fig.savefig(filename, dpi=150, bbox_inches='tight')
     
     def close(self):
         plt.ioff()
