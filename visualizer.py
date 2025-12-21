@@ -139,17 +139,46 @@ class Visualizer:
                       c=colors_array, cmap='gray', s=point_size, alpha=0.7, depthshade=True)
     
     def _get_camera_transform(self):
-        """Get camera transformation matrix"""
+        """Get camera transformation matrix based on view direction and rotation"""
         cam_pos = self.camera_position
         cam_rot = self.camera_rotation
+        cam_target = np.array([0.0, 0.0, 0.0])  # Looking at origin
         
+        # Calculate forward direction (from camera to target)
+        forward = cam_target - cam_pos
+        forward_len = np.linalg.norm(forward)
+        if forward_len > 0:
+            forward = forward / forward_len
+        else:
+            forward = np.array([0, 0, 1])
+        
+        # Calculate right and up vectors using forward direction
+        world_up = np.array([0, 1, 0])
+        right = np.cross(forward, world_up)
+        right_len = np.linalg.norm(right)
+        if right_len > 0:
+            right = right / right_len
+        else:
+            right = np.array([1, 0, 0])
+        
+        up = np.cross(right, forward)
+        
+        # Apply camera rotation to the basis vectors
         rx_rad = np.radians(cam_rot['x'])
         ry_rad = np.radians(cam_rot['y'])
         
         Rx = np.array([[1,0,0],[0,np.cos(rx_rad),-np.sin(rx_rad)],[0,np.sin(rx_rad),np.cos(rx_rad)]])
         Ry = np.array([[np.cos(ry_rad),0,np.sin(ry_rad)],[0,1,0],[-np.sin(ry_rad),0,np.cos(ry_rad)]])
-        R_cam = Ry @ Rx
-        R_cam_inv = R_cam.T
+        R_rot = Ry @ Rx
+        
+        forward = R_rot @ forward
+        right = R_rot @ right
+        up = R_rot @ up
+        
+        # Build camera-to-world matrix and invert it
+        # Camera space: X = right, Y = up, Z = forward
+        R_cam = np.array([right, up, forward]).T
+        R_cam_inv = R_cam.T  # Inverse of rotation is transpose
         
         return R_cam_inv, cam_pos
     
@@ -166,13 +195,16 @@ class Visualizer:
         pixels_2d = {}
         depth_buffer = {}
         
-        # Sample voxels based on quality
+        # Sample voxels based on quality - use systematic sampling for better coverage
         total_voxels = len(y_i)
         if quality == "fast":
-            sample_size = min(total_voxels, 5000)  # Fast preview: 5000 voxels
+            sample_size = min(total_voxels, 8000)  # Fast preview: 8000 voxels for better coverage
         else:
             sample_size = min(total_voxels, 20000)  # Final: 20000 voxels
-        sample_indices = np.random.choice(total_voxels, size=sample_size, replace=False)
+        
+        # Use systematic sampling to ensure we get voxels from all parts
+        step = max(1, total_voxels // sample_size)
+        sample_indices = np.arange(0, total_voxels, step)[:sample_size]
         
         for idx in sample_indices:
             y, x, z = y_i[idx], x_i[idx], z_i[idx]
