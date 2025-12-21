@@ -84,19 +84,25 @@ class Visualizer:
                 fontweight='bold', color='purple', ha='center')
     
     def _draw_rocket_3d(self, ax, position: List[float], rotation: Dict):
-        """Draw rocket model in 3D space"""
+        """Draw rocket model in 3D space with better density"""
         # Get voxel indices
         y_i, x_i, z_i = np.where(np.sum(self.voxel_data, axis=3) > 10)
         
         if len(y_i) == 0:
             return
         
-        # Sample voxels for visualization (not all of them)
-        sample_indices = np.random.choice(len(y_i), size=min(len(y_i), 1000), replace=False)
+        # Sample more voxels for better visualization (up to 15000)
+        total_voxels = len(y_i)
+        sample_size = min(total_voxels, 15000)
+        sample_indices = np.random.choice(total_voxels, size=sample_size, replace=False)
+        
+        # Collect points and colors for batch scatter
+        points_3d = []
+        colors = []
         
         for idx in sample_indices:
             y, x, z = y_i[idx], x_i[idx], z_i[idx]
-            color = self.voxel_data[y, x, z] / 255.0
+            voxel_color = self.voxel_data[y, x, z].astype(float) / 255.0
             
             # Transform point
             x_local = x - self.rocket_centroid[0]
@@ -118,7 +124,15 @@ class Visualizer:
             world_y = position[1] + point[1]
             world_z = position[2] + point[2]
             
-            ax.scatter(world_x, world_y, world_z, c=[color], s=1, alpha=0.6)
+            points_3d.append([world_x, world_y, world_z])
+            colors.append(voxel_color)
+        
+        if len(points_3d) > 0:
+            points_array = np.array(points_3d)
+            colors_array = np.array(colors)
+            # Use larger point size (s=8) and more opaque (alpha=0.8)
+            ax.scatter(points_array[:, 0], points_array[:, 1], points_array[:, 2], 
+                      c=colors_array, cmap='gray', s=8, alpha=0.8, depthshade=True)
     
     def _get_camera_transform(self):
         """Get camera transformation matrix"""
@@ -148,8 +162,10 @@ class Visualizer:
         pixels_2d = {}
         depth_buffer = {}
         
-        # Sample voxels
-        sample_indices = np.random.choice(len(y_i), size=min(len(y_i), 2000), replace=False)
+        # Sample more voxels for better camera view
+        total_voxels = len(y_i)
+        sample_size = min(total_voxels, 20000)
+        sample_indices = np.random.choice(total_voxels, size=sample_size, replace=False)
         
         for idx in sample_indices:
             y, x, z = y_i[idx], x_i[idx], z_i[idx]
@@ -186,18 +202,21 @@ class Visualizer:
             x_2d = (cam_space[0] / cam_z) * f
             y_2d = (cam_space[1] / cam_z) * f
             
-            # Round to pixel
-            px = int(x_2d * 100)
-            py = int(y_2d * 100)
+            # Round to pixel with finer precision
+            px = int(x_2d * 50)
+            py = int(y_2d * 50)
             
             # Depth test
             if (px, py) not in depth_buffer or cam_z < depth_buffer[(px, py)]:
                 pixels_2d[(px, py)] = color
                 depth_buffer[(px, py)] = cam_z
         
-        # Draw pixels
-        for (px, py), color in pixels_2d.items():
-            ax.scatter(px / 100.0, py / 100.0, c=[color], s=2, alpha=0.7)
+        # Draw pixels with larger size
+        if len(pixels_2d) > 0:
+            px_array = np.array([k[0] for k in pixels_2d.keys()]) / 50.0
+            py_array = np.array([k[1] for k in pixels_2d.keys()]) / 50.0
+            colors = np.array(list(pixels_2d.values()))
+            ax.scatter(px_array, py_array, c=colors, cmap='gray', s=3, alpha=0.9)
     
     def show_camera_setup_realtime(self, position: List[float], rotation: Dict):
         """Show camera setup with real-time rocket rendering"""
