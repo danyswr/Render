@@ -20,11 +20,20 @@ def render_with_config(config: ConfigManager):
     print("RENDERING ROCKET")
     print("=" * 60)
     
-    print("\n[1] Building Rocket Model...")
-    rocket = RocketModel(col=320, row=450, length=320)
-    voxel_data = rocket.build()
-    centroid = rocket.get_centroid()
-    print(f"✓ Rocket built! Centroid: {centroid}")
+    print("\n[1] Loading/Building Rocket Model...")
+    # Try load from cache first
+    cache_data = RocketModel.load_cache()
+    if cache_data:
+        voxel_data = cache_data["voxel"]
+        centroid = cache_data["centroid"]
+    else:
+        # Build and cache
+        rocket = RocketModel(col=320, row=450, length=320)
+        voxel_data = rocket.build()
+        centroid = rocket.get_centroid()
+        rocket.save_cache()
+    
+    print(f"✓ Rocket ready! Centroid: {centroid}")
     
     print("\n[2] Setting up Camera...")
     camera_settings = config.get_camera_settings()
@@ -133,28 +142,40 @@ def render_with_config(config: ConfigManager):
 
 
 def main():
-    print("=" * 70)
-    print(" " * 15 + "ROCKET 3D RENDERER - GUI MODE v3")
-    print("=" * 70)
-    print("\nOpening GUI configuration interface...")
-    print("Please configure your camera and object settings in the GUI window.")
-    print("\n" + "-" * 70 + "\n")
+    import sys
     
-    # Launch GUI
-    gui = GUIInput()
-    config = gui.run()
-    
-    if config is None:
-        print("\n✗ Configuration cancelled. Exiting.")
-        return
-    
-    print("\n✓ Configuration complete!")
-    proceed = input("\nProceed with rendering? (Y/n, tekan Enter=ya): ").strip().lower()
-    if proceed == 'n':
-        print("\n✗ Render cancelled. Configuration saved for later use.")
-        return
-    
-    render_with_config(config)
+    # Check if user passed 'render' argument to skip GUI
+    if len(sys.argv) > 1 and sys.argv[1] == 'render':
+        print("=" * 70)
+        print(" " * 15 + "ROCKET 3D RENDERER - RENDER MODE")
+        print("=" * 70)
+        print("\nLoading saved configuration...")
+        config = ConfigManager()
+        try:
+            config.load()
+            print("✓ Configuration loaded!")
+            render_with_config(config)
+        except:
+            print("✗ No saved configuration found. Run without arguments to configure first.")
+            return
+    else:
+        print("=" * 70)
+        print(" " * 15 + "ROCKET 3D RENDERER - GUI MODE v3")
+        print("=" * 70)
+        print("\nOpening GUI configuration interface...")
+        print("Please configure your camera and object settings in the GUI window.")
+        print("\n" + "-" * 70 + "\n")
+        
+        # Launch GUI
+        gui = GUIInput()
+        config = gui.run()
+        
+        if config is None:
+            print("\n✗ Configuration cancelled. Exiting.")
+            return
+        
+        print("\n✓ Configuration complete!")
+        print("\nUse 'Apply' to save without rendering, or 'Render Now' to start rendering.")
     
     print("\n" + "=" * 70)
     print("ALL DONE!")

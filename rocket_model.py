@@ -1,4 +1,6 @@
 import numpy as np
+import pickle
+import os
 
 class RocketModel:
     """Class untuk membangun dan menyimpan model voxel rocket lengkap (ET, SRB, dan Orbiter)"""
@@ -33,6 +35,35 @@ class RocketModel:
     def get_centroid(self):
         """Mengembalikan titik pusat roket (untuk keperluan visualisasi/rotasi)"""
         return np.array([self.cx, self.cy, self.cz])
+    
+    def save_cache(self):
+        """Simpan voxel data ke cache file"""
+        os.makedirs("cache", exist_ok=True)
+        cache_file = "cache/rocket_model.pkl"
+        cache_data = {
+            "voxel": self.voxel,
+            "centroid": self.get_centroid(),
+            "col": self.col,
+            "row": self.row,
+            "length": self.length
+        }
+        with open(cache_file, 'wb') as f:
+            pickle.dump(cache_data, f)
+        print(f"✓ Model cached to {cache_file}")
+    
+    @staticmethod
+    def load_cache():
+        """Load voxel data dari cache file"""
+        cache_file = "cache/rocket_model.pkl"
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'rb') as f:
+                    cache_data = pickle.load(f)
+                print("✓ Model loaded from cache (fast!)")
+                return cache_data
+            except:
+                return None
+        return None
 
     def get_color_shaded(self, x, y, z, nx, ny, nz, c_lit, c_shade):
         """Menghitung warna berdasarkan pencahayaan (Shading)"""

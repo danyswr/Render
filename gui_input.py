@@ -69,7 +69,9 @@ class GUIInput:
         btn_frame = ttk.Frame(self.window)
         btn_frame.pack(fill=tk.X, padx=20, pady=15)
         
-        ttk.Button(btn_frame, text="Apply & Render", 
+        ttk.Button(btn_frame, text="Render Now", 
+                  command=self.render_config).pack(side=tk.RIGHT, padx=10)
+        ttk.Button(btn_frame, text="Apply (Save Only)", 
                   command=self.apply_config).pack(side=tk.RIGHT, padx=10)
         ttk.Button(btn_frame, text="Cancel", 
                   command=self.cancel).pack(side=tk.RIGHT, padx=10)
@@ -421,35 +423,47 @@ class GUIInput:
             messagebox.showerror("Error", f"Failed to load: {e}")
             self.load_status.config(text="✗ Load failed", foreground="red")
     
+    def save_to_config(self):
+        """Save current settings to config object"""
+        if len(self.translation_points) == 0:
+            self.translation_points = [[0.0, 0.0, 0.0]]
+            self.rotations = [{"x": 0.0, "y": 0.0}]
+        
+        self.config.clear_object_animation_points()
+        self.config.clear_camera_animation_points()
+        
+        for i, point in enumerate(self.translation_points):
+            rot = self.rotations[i] if i < len(self.rotations) else {"x": 0.0, "y": 0.0}
+            self.config.add_animation_point(point, rot["x"], rot["y"])
+        
+        for i, point in enumerate(self.camera_translation_points):
+            rot = self.camera_rotations[i] if i < len(self.camera_rotations) else {"x": 0.0, "y": 0.0}
+            self.config.add_camera_animation_point(point, rot["x"], rot["y"])
+        
+        if len(self.camera_translation_points) == 0:
+            self.config.set_camera_settings(self.camera_position, 
+                                            self.camera_rotation["x"], 
+                                            self.camera_rotation["y"])
+        
+        self.config.set_render_settings(self.total_frames)
+    
     def apply_config(self):
-        """Apply config"""
+        """Apply config - save to JSON only"""
         try:
-            if len(self.translation_points) == 0:
-                self.translation_points = [[0.0, 0.0, 0.0]]
-                self.rotations = [{"x": 0.0, "y": 0.0}]
-            
-            self.config.clear_object_animation_points()
-            self.config.clear_camera_animation_points()
-            
-            for i, point in enumerate(self.translation_points):
-                rot = self.rotations[i] if i < len(self.rotations) else {"x": 0.0, "y": 0.0}
-                self.config.add_animation_point(point, rot["x"], rot["y"])
-            
-            for i, point in enumerate(self.camera_translation_points):
-                rot = self.camera_rotations[i] if i < len(self.camera_rotations) else {"x": 0.0, "y": 0.0}
-                self.config.add_camera_animation_point(point, rot["x"], rot["y"])
-            
-            if len(self.camera_translation_points) == 0:
-                self.config.set_camera_settings(self.camera_position, 
-                                                self.camera_rotation["x"], 
-                                                self.camera_rotation["y"])
-            
-            self.config.set_render_settings(self.total_frames)
+            self.save_to_config()
             self.config.save()
-            
+            self.status.config(text="Status: Configuration saved to JSON!")
+            messagebox.showinfo("Success", "Configuration saved!\n\nClick 'Render Now' when ready to render.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save: {e}")
+    
+    def render_config(self):
+        """Render config - save and close window to start rendering"""
+        try:
+            self.save_to_config()
+            self.config.save()
             self.result = self.config
             self.window.destroy()
-            
         except Exception as e:
             messagebox.showerror("Error", f"Failed: {e}")
     
