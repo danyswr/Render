@@ -1,19 +1,27 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
+#ini file gui_input.py
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+                            QLabel, QPushButton, QTabWidget, QScrollArea, QFrame, QListWidget, 
+                            QListWidgetItem, QGridLayout, QMessageBox, QFileDialog, QLineEdit,
+                            QDoubleSpinBox, QSpinBox, QGroupBox, QDialog, QDialogButtonBox)
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QFont, QDoubleValidator
 from typing import Optional
 from config_manager import ConfigManager
 from visualizer import Visualizer
-import matplotlib.pyplot as plt
-
 
 class GUIInput:
     """GUI untuk input konfigurasi - layout yang lebih baik dan lega"""
-    
     def __init__(self):
-        self.window = tk.Tk()
-        self.window.title("Rocket 3D Renderer - Configuration")
-        self.window.geometry("1400x850")
-        self.window.minsize(1000, 700)
+        self.app = QApplication(sys.argv)
+        self.window = QMainWindow()
+        self.window.setWindowTitle("Rocket 3D Renderer - Configuration")
+        self.window.setGeometry(100, 100, 1400, 850)
+        self.window.setMinimumSize(1000, 700)
         
         self.config = ConfigManager()
         self.visualizer = Visualizer()
@@ -26,7 +34,6 @@ class GUIInput:
         self.camera_translation_points = []
         self.camera_rotations = []
         self.total_frames = 1
-        
         self.result = None
         self.current_tab = "camera"
         self.selected_point_idx = None
@@ -36,60 +43,93 @@ class GUIInput:
         plt.show(block=False)
         
         self.setup_ui()
-    
+        
     def setup_ui(self):
         """Setup main UI"""
+        central_widget = QWidget()
+        main_layout = QVBoxLayout(central_widget)
+        
         # Header frame dengan button selector
-        header = ttk.Frame(self.window, height=80)
-        header.pack(fill=tk.X, padx=20, pady=15)
+        header_frame = QFrame()
+        header_layout = QVBoxLayout(header_frame)
+        header_layout.setContentsMargins(20, 10, 20, 10)
         
-        title = ttk.Label(header, text="ROCKET 3D RENDERER - Configuration", 
-                         font=("Arial", 14, "bold"))
-        title.pack()
+        title = QLabel("ROCKET 3D RENDERER - Configuration")
+        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(title)
         
-        subtitle = ttk.Label(header, text="Matplotlib 3D & 2D ditampilkan di samping - Input di sini",
-                            font=("Arial", 10))
-        subtitle.pack()
+        subtitle = QLabel("Matplotlib 3D & 2D ditampilkan di samping - Input di sini")
+        subtitle.setFont(QFont("Arial", 10))
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(subtitle)
         
         # Tab selector buttons
-        selector_frame = ttk.Frame(header)
-        selector_frame.pack(pady=10)
+        selector_frame = QFrame()
+        selector_layout = QHBoxLayout(selector_frame)
+        selector_layout.setContentsMargins(0, 10, 0, 0)
         
-        ttk.Button(selector_frame, text="Camera Setup", 
-                  command=lambda: self.show_tab("camera")).pack(side=tk.LEFT, padx=10)
-        ttk.Button(selector_frame, text="Object Setup", 
-                  command=lambda: self.show_tab("object")).pack(side=tk.LEFT, padx=10)
-        ttk.Button(selector_frame, text="Load Config", 
-                  command=lambda: self.show_tab("load")).pack(side=tk.LEFT, padx=10)
+        self.camera_btn = QPushButton("Camera Setup")
+        self.camera_btn.clicked.connect(lambda: self.show_tab("camera"))
+        selector_layout.addWidget(self.camera_btn)
+        
+        self.object_btn = QPushButton("Object Setup")
+        self.object_btn.clicked.connect(lambda: self.show_tab("object"))
+        selector_layout.addWidget(self.object_btn)
+        
+        self.load_btn = QPushButton("Load Config")
+        self.load_btn.clicked.connect(lambda: self.show_tab("load"))
+        selector_layout.addWidget(self.load_btn)
+        
+        header_layout.addWidget(selector_frame)
+        main_layout.addWidget(header_frame)
         
         # Main content area
-        self.content_frame = ttk.Frame(self.window)
-        self.content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        self.content_frame = QFrame()
+        self.content_layout = QVBoxLayout(self.content_frame)
+        self.content_layout.setContentsMargins(15, 10, 15, 10)
+        main_layout.addWidget(self.content_frame, 1)
         
         # Bottom buttons
-        btn_frame = ttk.Frame(self.window)
-        btn_frame.pack(fill=tk.X, padx=20, pady=15)
+        btn_frame = QFrame()
+        btn_layout = QHBoxLayout(btn_frame)
+        btn_layout.setContentsMargins(20, 5, 20, 5)
         
-        ttk.Button(btn_frame, text="Render Now", 
-                  command=self.render_config).pack(side=tk.RIGHT, padx=10)
-        ttk.Button(btn_frame, text="Apply (Save & Update View)", 
-                  command=self.apply_config).pack(side=tk.RIGHT, padx=10)
-        ttk.Button(btn_frame, text="Cancel", 
-                  command=self.cancel).pack(side=tk.RIGHT, padx=10)
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.cancel)
+        btn_layout.addWidget(self.cancel_btn)
+        
+        self.apply_btn = QPushButton("Apply (Save & Update View)")
+        self.apply_btn.clicked.connect(self.apply_config)
+        btn_layout.addWidget(self.apply_btn)
+        
+        self.render_btn = QPushButton("Render Now")
+        self.render_btn.clicked.connect(self.render_config)
+        btn_layout.addWidget(self.render_btn)
+        
+        main_layout.addWidget(btn_frame)
         
         # Status
-        self.status = ttk.Label(self.window, text="Status: Ready", 
-                               font=("Arial", 9), foreground="blue")
-        self.status.pack(fill=tk.X, padx=20, pady=5)
+        self.status = QLabel("Status: Ready")
+        self.status.setFont(QFont("Arial", 9))
+        self.status.setStyleSheet("color: blue;")
+        self.status.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.status.setContentsMargins(20, 5, 20, 5)
+        main_layout.addWidget(self.status)
+        
+        self.window.setCentralWidget(central_widget)
+        self.window.show()
         
         # Show first tab
         self.show_tab("camera")
-    
+        
     def clear_content(self):
         """Bersihkan content frame"""
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-    
+        while self.content_layout.count():
+            child = self.content_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+                
     def show_tab(self, tab_name):
         """Tampilkan tab yang dipilih"""
         self.current_tab = tab_name
@@ -98,379 +138,541 @@ class GUIInput:
         
         if tab_name == "camera":
             self.setup_camera_tab()
+            self.camera_btn.setStyleSheet("background-color: #a0c8f0;")
+            self.object_btn.setStyleSheet("")
+            self.load_btn.setStyleSheet("")
         elif tab_name == "object":
             self.setup_object_tab()
+            self.camera_btn.setStyleSheet("")
+            self.object_btn.setStyleSheet("background-color: #a0c8f0;")
+            self.load_btn.setStyleSheet("")
         elif tab_name == "load":
             self.setup_load_tab()
-    
+            self.camera_btn.setStyleSheet("")
+            self.object_btn.setStyleSheet("")
+            self.load_btn.setStyleSheet("background-color: #a0c8f0;")
+            
     def setup_camera_tab(self):
         """Tab untuk camera setup"""
-        # Main container dengan scrollbar
-        canvas = tk.Canvas(self.content_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.content_frame, orient="vertical", command=canvas.yview)
-        scrollable = ttk.Frame(canvas)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
         
-        scrollable.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(15, 10, 15, 10)
+        scroll_layout.setSpacing(15)
         
         # ===== POSISI =====
-        pos_frame = ttk.LabelFrame(scrollable, text="CAMERA POSITION", padding=15)
-        pos_frame.pack(fill=tk.X, padx=15, pady=15)
+        pos_group = QGroupBox("CAMERA POSITION")
+        pos_layout = QVBoxLayout(pos_group)
+        pos_layout.setContentsMargins(10, 15, 10, 15)
         
-        # Input row
-        input_row = ttk.Frame(pos_frame)
-        input_row.pack(fill=tk.X, pady=10)
+        input_row = QFrame()
+        input_layout = QHBoxLayout(input_row)
         
-        self.cam_x = tk.DoubleVar(value=0.0)
-        self.cam_y = tk.DoubleVar(value=0.0)
-        self.cam_z = tk.DoubleVar(value=-150.0)
+        # X coordinate
+        x_frame = QFrame()
+        x_layout = QHBoxLayout(x_frame)
+        x_layout.addWidget(QLabel("X:"))
+        self.cam_x = QDoubleSpinBox()
+        self.cam_x.setRange(-1000, 1000)
+        self.cam_x.setValue(0.0)
+        self.cam_x.setSingleStep(1.0)
+        self.cam_x.setDecimals(1)
+        self.cam_x.setFixedWidth(100)
+        x_layout.addWidget(self.cam_x)
+        input_layout.addWidget(x_frame)
         
-        ttk.Label(input_row, text="X:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(input_row, textvariable=self.cam_x, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        # Y coordinate
+        y_frame = QFrame()
+        y_layout = QHBoxLayout(y_frame)
+        y_layout.addWidget(QLabel("Y:"))
+        self.cam_y = QDoubleSpinBox()
+        self.cam_y.setRange(-1000, 1000)
+        self.cam_y.setValue(0.0)
+        self.cam_y.setSingleStep(1.0)
+        self.cam_y.setDecimals(1)
+        self.cam_y.setFixedWidth(100)
+        y_layout.addWidget(self.cam_y)
+        input_layout.addWidget(y_frame)
         
-        ttk.Label(input_row, text="Y:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(input_row, textvariable=self.cam_y, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        # Z coordinate
+        z_frame = QFrame()
+        z_layout = QHBoxLayout(z_frame)
+        z_layout.addWidget(QLabel("Z:"))
+        self.cam_z = QDoubleSpinBox()
+        self.cam_z.setRange(-1000, 1000)
+        self.cam_z.setValue(-150.0)
+        self.cam_z.setSingleStep(1.0)
+        self.cam_z.setDecimals(1)
+        self.cam_z.setFixedWidth(100)
+        z_layout.addWidget(self.cam_z)
+        input_layout.addWidget(z_frame)
         
-        ttk.Label(input_row, text="Z:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(input_row, textvariable=self.cam_z, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        save_btn = QPushButton("Save Position")
+        save_btn.clicked.connect(self.save_camera)
+        input_layout.addWidget(save_btn)
         
-        ttk.Button(input_row, text="Save Position", command=self.save_camera).pack(side=tk.RIGHT, padx=15)
+        pos_layout.addWidget(input_row)
+        scroll_layout.addWidget(pos_group)
         
         # ===== ROTASI =====
-        rot_frame = ttk.LabelFrame(scrollable, text="CAMERA ROTATION", padding=15)
-        rot_frame.pack(fill=tk.X, padx=15, pady=15)
+        rot_group = QGroupBox("CAMERA ROTATION")
+        rot_layout = QVBoxLayout(rot_group)
+        rot_layout.setContentsMargins(10, 15, 10, 15)
         
-        rot_row = ttk.Frame(rot_frame)
-        rot_row.pack(fill=tk.X, pady=10)
+        rot_row = QFrame()
+        rot_layout_inner = QHBoxLayout(rot_row)
         
-        self.cam_pitch = tk.DoubleVar(value=0.0)
-        self.cam_yaw = tk.DoubleVar(value=0.0)
+        # Pitch (X)
+        pitch_frame = QFrame()
+        pitch_layout = QHBoxLayout(pitch_frame)
+        pitch_layout.addWidget(QLabel("Pitch (X):"))
+        self.cam_pitch = QDoubleSpinBox()
+        self.cam_pitch.setRange(-180, 180)
+        self.cam_pitch.setValue(0.0)
+        self.cam_pitch.setSingleStep(1.0)
+        self.cam_pitch.setDecimals(1)
+        self.cam_pitch.setFixedWidth(100)
+        pitch_layout.addWidget(self.cam_pitch)
+        rot_layout_inner.addWidget(pitch_frame)
         
-        ttk.Label(rot_row, text="Pitch (X):", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(rot_row, textvariable=self.cam_pitch, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        # Yaw (Y)
+        yaw_frame = QFrame()
+        yaw_layout = QHBoxLayout(yaw_frame)
+        yaw_layout.addWidget(QLabel("Yaw (Y):"))
+        self.cam_yaw = QDoubleSpinBox()
+        self.cam_yaw.setRange(-180, 180)
+        self.cam_yaw.setValue(0.0)
+        self.cam_yaw.setSingleStep(1.0)
+        self.cam_yaw.setDecimals(1)
+        self.cam_yaw.setFixedWidth(100)
+        yaw_layout.addWidget(self.cam_yaw)
+        rot_layout_inner.addWidget(yaw_frame)
         
-        ttk.Label(rot_row, text="Yaw (Y):", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(rot_row, textvariable=self.cam_yaw, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        update_btn = QPushButton("Update View")
+        update_btn.clicked.connect(self.update_vis)
+        rot_layout_inner.addWidget(update_btn)
         
-        ttk.Button(rot_row, text="Update View", command=self.update_vis).pack(side=tk.RIGHT, padx=15)
+        rot_layout.addWidget(rot_row)
+        scroll_layout.addWidget(rot_group)
         
         # ===== ANIMATION POINTS =====
-        anim_frame = ttk.LabelFrame(scrollable, text="CAMERA ANIMATION POINTS", padding=15)
-        anim_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        anim_group = QGroupBox("CAMERA ANIMATION POINTS")
+        anim_layout = QVBoxLayout(anim_group)
+        anim_layout.setContentsMargins(10, 15, 10, 15)
         
-        # Listbox dengan scrollbar
-        list_container = ttk.Frame(anim_frame)
-        list_container.pack(fill=tk.BOTH, expand=True, pady=10)
+        self.cam_listbox = QListWidget()
+        self.cam_listbox.itemClicked.connect(self.on_camera_point_click)
+        anim_layout.addWidget(self.cam_listbox, 1)
         
-        scrollbar2 = ttk.Scrollbar(list_container)
-        scrollbar2.pack(side=tk.RIGHT, fill=tk.Y)
+        # Buttons row
+        btn_row = QFrame()
+        btn_layout = QHBoxLayout(btn_row)
         
-        self.cam_listbox = tk.Listbox(list_container, yscrollcommand=scrollbar2.set, 
-                                      font=("Arial", 10), height=8)
-        self.cam_listbox.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
-        self.cam_listbox.bind('<Button-1>', self.on_camera_point_click)
-        scrollbar2.config(command=self.cam_listbox.yview)
+        add_btn = QPushButton("Add Point from Current")
+        add_btn.clicked.connect(self.add_camera_point)
+        btn_layout.addWidget(add_btn)
+        
+        edit_btn = QPushButton("Edit Selected Rotation")
+        edit_btn.clicked.connect(self.edit_camera_rotation)
+        btn_layout.addWidget(edit_btn)
+        
+        remove_btn = QPushButton("Remove Selected")
+        remove_btn.clicked.connect(self.remove_camera_point)
+        btn_layout.addWidget(remove_btn)
+        
+        anim_layout.addWidget(btn_row)
+        scroll_layout.addWidget(anim_group, 1)
+        
+        scroll_area.setWidget(scroll_content)
+        self.content_layout.addWidget(scroll_area)
         
         self.update_cam_listbox()
         
-        # Buttons
-        btn_row = ttk.Frame(anim_frame)
-        btn_row.pack(fill=tk.X, pady=10)
-        
-        ttk.Button(btn_row, text="Add Point from Current", command=self.add_camera_point).pack(side=tk.LEFT, padx=10)
-        ttk.Button(btn_row, text="Edit Selected Rotation", command=self.edit_camera_rotation).pack(side=tk.LEFT, padx=10)
-        ttk.Button(btn_row, text="Remove Selected", command=self.remove_camera_point).pack(side=tk.LEFT, padx=10)
-        
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
     def setup_object_tab(self):
         """Tab untuk object setup"""
-        canvas = tk.Canvas(self.content_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.content_frame, orient="vertical", command=canvas.yview)
-        scrollable = ttk.Frame(canvas)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
         
-        scrollable.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(15, 10, 15, 10)
+        scroll_layout.setSpacing(15)
         
         # ===== INPUT SECTION =====
-        input_frame = ttk.LabelFrame(scrollable, text="ADD OBJECT POINT (Translation + Rotation)", padding=15)
-        input_frame.pack(fill=tk.X, padx=15, pady=15)
+        input_group = QGroupBox("ADD OBJECT POINT (Translation + Rotation)")
+        input_layout = QVBoxLayout(input_group)
+        input_layout.setContentsMargins(10, 15, 10, 15)
         
-        self.trans_x = tk.DoubleVar(value=0.0)
-        self.trans_y = tk.DoubleVar(value=0.0)
-        self.trans_z = tk.DoubleVar(value=0.0)
-        self.rot_pitch = tk.DoubleVar(value=0.0)
-        self.rot_yaw = tk.DoubleVar(value=0.0)
+        # Row 1: XYZ coordinates
+        row1 = QFrame()
+        row1_layout = QHBoxLayout(row1)
         
-        # Row 1: XYZ
-        row1 = ttk.Frame(input_frame)
-        row1.pack(fill=tk.X, pady=10)
+        # X coordinate
+        x_frame = QFrame()
+        x_layout = QHBoxLayout(x_frame)
+        x_layout.addWidget(QLabel("X:"))
+        self.trans_x = QDoubleSpinBox()
+        self.trans_x.setRange(-1000, 1000)
+        self.trans_x.setValue(0.0)
+        self.trans_x.setSingleStep(1.0)
+        self.trans_x.setDecimals(1)
+        self.trans_x.setFixedWidth(90)
+        x_layout.addWidget(self.trans_x)
+        row1_layout.addWidget(x_frame)
         
-        ttk.Label(row1, text="X:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(row1, textvariable=self.trans_x, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        # Y coordinate
+        y_frame = QFrame()
+        y_layout = QHBoxLayout(y_frame)
+        y_layout.addWidget(QLabel("Y:"))
+        self.trans_y = QDoubleSpinBox()
+        self.trans_y.setRange(-1000, 1000)
+        self.trans_y.setValue(0.0)
+        self.trans_y.setSingleStep(1.0)
+        self.trans_y.setDecimals(1)
+        self.trans_y.setFixedWidth(90)
+        y_layout.addWidget(self.trans_y)
+        row1_layout.addWidget(y_frame)
         
-        ttk.Label(row1, text="Y:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(row1, textvariable=self.trans_y, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        # Z coordinate
+        z_frame = QFrame()
+        z_layout = QHBoxLayout(z_frame)
+        z_layout.addWidget(QLabel("Z:"))
+        self.trans_z = QDoubleSpinBox()
+        self.trans_z.setRange(-1000, 1000)
+        self.trans_z.setValue(0.0)
+        self.trans_z.setSingleStep(1.0)
+        self.trans_z.setDecimals(1)
+        self.trans_z.setFixedWidth(90)
+        z_layout.addWidget(self.trans_z)
+        row1_layout.addWidget(z_frame)
         
-        ttk.Label(row1, text="Z:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(row1, textvariable=self.trans_z, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        input_layout.addWidget(row1)
         
         # Row 2: Rotation
-        row2 = ttk.Frame(input_frame)
-        row2.pack(fill=tk.X, pady=10)
+        row2 = QFrame()
+        row2_layout = QHBoxLayout(row2)
         
-        ttk.Label(row2, text="Pitch:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(row2, textvariable=self.rot_pitch, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        # Pitch
+        pitch_frame = QFrame()
+        pitch_layout = QHBoxLayout(pitch_frame)
+        pitch_layout.addWidget(QLabel("Pitch:"))
+        self.rot_pitch = QDoubleSpinBox()
+        self.rot_pitch.setRange(-180, 180)
+        self.rot_pitch.setValue(0.0)
+        self.rot_pitch.setSingleStep(1.0)
+        self.rot_pitch.setDecimals(1)
+        self.rot_pitch.setFixedWidth(90)
+        pitch_layout.addWidget(self.rot_pitch)
+        row2_layout.addWidget(pitch_frame)
         
-        ttk.Label(row2, text="Yaw:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        ttk.Entry(row2, textvariable=self.rot_yaw, width=12, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
+        # Yaw
+        yaw_frame = QFrame()
+        yaw_layout = QHBoxLayout(yaw_frame)
+        yaw_layout.addWidget(QLabel("Yaw:"))
+        self.rot_yaw = QDoubleSpinBox()
+        self.rot_yaw.setRange(-180, 180)
+        self.rot_yaw.setValue(0.0)
+        self.rot_yaw.setSingleStep(1.0)
+        self.rot_yaw.setDecimals(1)
+        self.rot_yaw.setFixedWidth(90)
+        yaw_layout.addWidget(self.rot_yaw)
+        row2_layout.addWidget(yaw_frame)
         
-        ttk.Button(row2, text="Add Point", command=self.add_translation_point).pack(side=tk.RIGHT, padx=15)
+        add_btn = QPushButton("Add Point")
+        add_btn.clicked.connect(self.add_translation_point)
+        row2_layout.addWidget(add_btn)
+        
+        input_layout.addWidget(row2)
+        scroll_layout.addWidget(input_group)
         
         # ===== TRANSLATION POINTS LIST =====
-        trans_frame = ttk.LabelFrame(scrollable, text="OBJECT POINTS (Click to Edit Rotation)", padding=15)
-        trans_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        trans_group = QGroupBox("OBJECT POINTS (Click to Edit Rotation)")
+        trans_layout = QVBoxLayout(trans_group)
+        trans_layout.setContentsMargins(10, 15, 10, 15)
         
-        list_container = ttk.Frame(trans_frame)
-        list_container.pack(fill=tk.BOTH, expand=True, pady=10)
+        self.trans_listbox = QListWidget()
+        self.trans_listbox.itemClicked.connect(self.on_object_point_click)
+        trans_layout.addWidget(self.trans_listbox, 1)
         
-        scrollbar2 = ttk.Scrollbar(list_container)
-        scrollbar2.pack(side=tk.RIGHT, fill=tk.Y)
+        # Buttons row
+        btn_row = QFrame()
+        btn_layout = QHBoxLayout(btn_row)
         
-        self.trans_listbox = tk.Listbox(list_container, yscrollcommand=scrollbar2.set, 
-                                       font=("Arial", 10), height=8)
-        self.trans_listbox.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
-        self.trans_listbox.bind('<Button-1>', self.on_object_point_click)
-        scrollbar2.config(command=self.trans_listbox.yview)
+        edit_btn = QPushButton("Edit Selected Rotation")
+        edit_btn.clicked.connect(self.edit_object_rotation)
+        btn_layout.addWidget(edit_btn)
+        
+        remove_btn = QPushButton("Remove Selected")
+        remove_btn.clicked.connect(self.remove_translation_point)
+        btn_layout.addWidget(remove_btn)
+        
+        trans_layout.addWidget(btn_row)
+        scroll_layout.addWidget(trans_group, 1)
+        
+        # ===== RENDER SETTINGS =====
+        frame_group = QGroupBox("RENDER SETTINGS")
+        frame_layout = QVBoxLayout(frame_group)
+        frame_layout.setContentsMargins(10, 15, 10, 15)
+        
+        frame_row = QFrame()
+        frame_row_layout = QHBoxLayout(frame_row)
+        
+        frame_row_layout.addWidget(QLabel("Total Frames:"))
+        
+        self.frame_var = QSpinBox()
+        self.frame_var.setRange(1, 100)
+        self.frame_var.setValue(1)
+        self.frame_var.setFixedWidth(100)
+        frame_row_layout.addWidget(self.frame_var)
+        
+        save_btn = QPushButton("Save Settings")
+        save_btn.clicked.connect(self.save_object)
+        frame_row_layout.addWidget(save_btn)
+        
+        frame_row_layout.addStretch()
+        frame_layout.addWidget(frame_row)
+        scroll_layout.addWidget(frame_group)
+        
+        scroll_area.setWidget(scroll_content)
+        self.content_layout.addWidget(scroll_area)
         
         self.update_trans_listbox()
         
-        btn_row = ttk.Frame(trans_frame)
-        btn_row.pack(fill=tk.X, pady=10)
-        
-        ttk.Button(btn_row, text="Edit Selected Rotation", command=self.edit_object_rotation).pack(side=tk.LEFT, padx=10)
-        ttk.Button(btn_row, text="Remove Selected", command=self.remove_translation_point).pack(side=tk.LEFT, padx=10)
-        
-        # ===== RENDER SETTINGS =====
-        frame_frame = ttk.LabelFrame(scrollable, text="RENDER SETTINGS", padding=15)
-        frame_frame.pack(fill=tk.X, padx=15, pady=15)
-        
-        frame_row = ttk.Frame(frame_frame)
-        frame_row.pack(fill=tk.X, pady=10)
-        
-        ttk.Label(frame_row, text="Total Frames:", font=("Arial", 11)).pack(side=tk.LEFT, padx=15)
-        self.frame_var = tk.IntVar(value=1)
-        ttk.Spinbox(frame_row, from_=1, to=100, textvariable=self.frame_var, width=15, font=("Arial", 11)).pack(side=tk.LEFT, padx=10)
-        
-        ttk.Button(frame_row, text="Save Settings", command=self.save_object).pack(side=tk.RIGHT, padx=15)
-        
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
     def setup_load_tab(self):
         """Tab untuk load config"""
-        frame = ttk.Frame(self.content_frame)
-        frame.pack(fill=tk.BOTH, expand=True)
+        frame = QFrame()
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        info = ttk.Label(frame, 
-                        text="Load existing configuration dari file",
-                        font=("Arial", 12))
-        info.pack(pady=50)
+        info = QLabel("Load existing configuration dari file")
+        info.setFont(QFont("Arial", 12))
+        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info.setWordWrap(True)
+        layout.addWidget(info)
         
-        ttk.Button(frame, text="Load Configuration",
-                  command=self.load_config).pack(pady=30)
+        load_btn = QPushButton("Load Configuration")
+        load_btn.setFixedSize(200, 40)
+        load_btn.clicked.connect(self.load_config)
+        layout.addWidget(load_btn)
         
-        self.load_status = ttk.Label(frame, text="", font=("Arial", 10), 
-                                    foreground="green")
-        self.load_status.pack(pady=20)
-    
-    def on_camera_point_click(self, event):
+        self.load_status = QLabel("")
+        self.load_status.setFont(QFont("Arial", 10))
+        self.load_status.setStyleSheet("color: green;")
+        self.load_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.load_status)
+        
+        layout.addStretch()
+        self.content_layout.addWidget(frame)
+        
+    def on_camera_point_click(self, item):
         """Handle camera point selection"""
-        selection = self.cam_listbox.curselection()
-        if selection:
-            self.selected_point_idx = selection[0]
-    
-    def on_object_point_click(self, event):
+        self.selected_point_idx = self.cam_listbox.row(item)
+        
+    def on_object_point_click(self, item):
         """Handle object point selection"""
-        selection = self.trans_listbox.curselection()
-        if selection:
-            self.selected_point_idx = selection[0]
-    
+        self.selected_point_idx = self.trans_listbox.row(item)
+        
     def edit_camera_rotation(self):
         """Edit selected camera point rotation"""
         if self.selected_point_idx is None:
-            messagebox.showwarning("Warning", "Pilih point dulu!")
+            QMessageBox.warning(self.window, "Warning", "Pilih point dulu!")
             return
-        
         if self.selected_point_idx >= len(self.camera_rotations):
-            messagebox.showerror("Error", "Invalid point index")
+            QMessageBox.critical(self.window, "Error", "Invalid point index")
             return
+            
+        dialog = QDialog(self.window)
+        dialog.setWindowTitle("Edit Camera Rotation")
+        dialog.setFixedSize(400, 200)
         
-        edit_window = tk.Toplevel(self.window)
-        edit_window.title("Edit Camera Rotation")
-        edit_window.geometry("400x200")
+        layout = QVBoxLayout(dialog)
         
-        pitch_var = tk.DoubleVar(value=self.camera_rotations[self.selected_point_idx]["x"])
-        yaw_var = tk.DoubleVar(value=self.camera_rotations[self.selected_point_idx]["y"])
+        # Pitch input
+        pitch_layout = QHBoxLayout()
+        pitch_layout.addWidget(QLabel("Pitch (X):"))
+        pitch_var = QDoubleSpinBox()
+        pitch_var.setRange(-180, 180)
+        pitch_var.setValue(self.camera_rotations[self.selected_point_idx]["x"])
+        pitch_var.setSingleStep(1.0)
+        pitch_var.setDecimals(1)
+        pitch_layout.addWidget(pitch_var)
+        layout.addLayout(pitch_layout)
         
-        ttk.Label(edit_window, text="Pitch (X):", font=("Arial", 11)).pack(pady=10)
-        ttk.Entry(edit_window, textvariable=pitch_var, width=20, font=("Arial", 11)).pack(pady=5)
+        # Yaw input
+        yaw_layout = QHBoxLayout()
+        yaw_layout.addWidget(QLabel("Yaw (Y):"))
+        yaw_var = QDoubleSpinBox()
+        yaw_var.setRange(-180, 180)
+        yaw_var.setValue(self.camera_rotations[self.selected_point_idx]["y"])
+        yaw_var.setSingleStep(1.0)
+        yaw_var.setDecimals(1)
+        yaw_layout.addWidget(yaw_var)
+        layout.addLayout(yaw_layout)
         
-        ttk.Label(edit_window, text="Yaw (Y):", font=("Arial", 11)).pack(pady=10)
-        ttk.Entry(edit_window, textvariable=yaw_var, width=20, font=("Arial", 11)).pack(pady=5)
+        # Button box
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
         
-        def save_changes():
-            self.camera_rotations[self.selected_point_idx]["x"] = pitch_var.get()
-            self.camera_rotations[self.selected_point_idx]["y"] = yaw_var.get()
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.camera_rotations[self.selected_point_idx]["x"] = pitch_var.value()
+            self.camera_rotations[self.selected_point_idx]["y"] = yaw_var.value()
             self.update_cam_listbox()
-            self.status.config(text="Status: Camera rotation updated")
-            edit_window.destroy()
-        
-        ttk.Button(edit_window, text="Save", command=save_changes).pack(pady=15)
-    
+            self.status.setText("Status: Camera rotation updated")
+            
     def edit_object_rotation(self):
         """Edit selected object point rotation"""
         if self.selected_point_idx is None:
-            messagebox.showwarning("Warning", "Pilih point dulu!")
+            QMessageBox.warning(self.window, "Warning", "Pilih point dulu!")
             return
-        
         if self.selected_point_idx >= len(self.rotations):
-            messagebox.showerror("Error", "Invalid point index")
+            QMessageBox.critical(self.window, "Error", "Invalid point index")
             return
+            
+        dialog = QDialog(self.window)
+        dialog.setWindowTitle("Edit Object Rotation")
+        dialog.setFixedSize(400, 200)
         
-        edit_window = tk.Toplevel(self.window)
-        edit_window.title("Edit Object Rotation")
-        edit_window.geometry("400x200")
+        layout = QVBoxLayout(dialog)
         
-        pitch_var = tk.DoubleVar(value=self.rotations[self.selected_point_idx]["x"])
-        yaw_var = tk.DoubleVar(value=self.rotations[self.selected_point_idx]["y"])
+        # Pitch input
+        pitch_layout = QHBoxLayout()
+        pitch_layout.addWidget(QLabel("Pitch (X):"))
+        pitch_var = QDoubleSpinBox()
+        pitch_var.setRange(-180, 180)
+        pitch_var.setValue(self.rotations[self.selected_point_idx]["x"])
+        pitch_var.setSingleStep(1.0)
+        pitch_var.setDecimals(1)
+        pitch_layout.addWidget(pitch_var)
+        layout.addLayout(pitch_layout)
         
-        ttk.Label(edit_window, text="Pitch (X):", font=("Arial", 11)).pack(pady=10)
-        ttk.Entry(edit_window, textvariable=pitch_var, width=20, font=("Arial", 11)).pack(pady=5)
+        # Yaw input
+        yaw_layout = QHBoxLayout()
+        yaw_layout.addWidget(QLabel("Yaw (Y):"))
+        yaw_var = QDoubleSpinBox()
+        yaw_var.setRange(-180, 180)
+        yaw_var.setValue(self.rotations[self.selected_point_idx]["y"])
+        yaw_var.setSingleStep(1.0)
+        yaw_var.setDecimals(1)
+        yaw_layout.addWidget(yaw_var)
+        layout.addLayout(yaw_layout)
         
-        ttk.Label(edit_window, text="Yaw (Y):", font=("Arial", 11)).pack(pady=10)
-        ttk.Entry(edit_window, textvariable=yaw_var, width=20, font=("Arial", 11)).pack(pady=5)
+        # Button box
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
         
-        def save_changes():
-            self.rotations[self.selected_point_idx]["x"] = pitch_var.get()
-            self.rotations[self.selected_point_idx]["y"] = yaw_var.get()
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.rotations[self.selected_point_idx]["x"] = pitch_var.value()
+            self.rotations[self.selected_point_idx]["y"] = yaw_var.value()
             self.update_trans_listbox()
-            self.status.config(text="Status: Object rotation updated")
-            edit_window.destroy()
-        
-        ttk.Button(edit_window, text="Save", command=save_changes).pack(pady=15)
-    
+            self.status.setText("Status: Object rotation updated")
+            
     def update_vis(self):
         """Update matplotlib visualization"""
         try:
-            self.camera_position = [self.cam_x.get(), self.cam_y.get(), self.cam_z.get()]
-            self.camera_rotation = {"x": self.cam_pitch.get(), "y": self.cam_yaw.get()}
+            self.camera_position = [self.cam_x.value(), self.cam_y.value(), self.cam_z.value()]
+            self.camera_rotation = {"x": self.cam_pitch.value(), "y": self.cam_yaw.value()}
+            
+            # Update visualizer
             self.visualizer.set_camera_position(self.camera_position[0], self.camera_position[1], self.camera_position[2])
             self.visualizer.set_camera_rotation(self.camera_rotation["x"], self.camera_rotation["y"])
+            
+            # Update view
             self.visualizer.show_camera_setup_realtime([0, 0, 0], self.camera_rotation)
             plt.draw()
-            self.status.config(text="Status: Visualization updated")
+            
+            self.status.setText("Status: Visualization updated")
         except Exception as e:
-            messagebox.showerror("Error", f"Update failed: {e}")
-    
+            QMessageBox.critical(self.window, "Error", f"Update failed: {e}")
+            
     def add_camera_point(self):
         """Tambah camera animation point"""
         try:
-            point = [self.cam_x.get(), self.cam_y.get(), self.cam_z.get()]
-            rotation = {"x": self.cam_pitch.get(), "y": self.cam_yaw.get()}
-            
+            point = [self.cam_x.value(), self.cam_y.value(), self.cam_z.value()]
+            rotation = {"x": self.cam_pitch.value(), "y": self.cam_yaw.value()}
             self.camera_translation_points.append(point)
             self.camera_rotations.append(rotation)
-            
             self.update_cam_listbox()
-            self.status.config(text="Status: Camera point added")
+            self.status.setText("Status: Camera point added")
         except Exception as e:
-            messagebox.showerror("Error", f"Invalid input: {e}")
-    
+            QMessageBox.critical(self.window, "Error", f"Invalid input: {e}")
+            
     def remove_camera_point(self):
         """Hapus camera point"""
-        sel = self.cam_listbox.curselection()
-        if sel:
-            idx = sel[0]
-            self.camera_translation_points.pop(idx)
-            self.camera_rotations.pop(idx)
+        if self.selected_point_idx is not None and 0 <= self.selected_point_idx < self.cam_listbox.count():
+            self.camera_translation_points.pop(self.selected_point_idx)
+            self.camera_rotations.pop(self.selected_point_idx)
             self.update_cam_listbox()
-            self.status.config(text="Status: Camera point removed")
-    
+            self.status.setText("Status: Camera point removed")
+            self.selected_point_idx = None
+            
     def update_cam_listbox(self):
         """Update camera listbox"""
-        self.cam_listbox.delete(0, tk.END)
+        self.cam_listbox.clear()
         for i, p in enumerate(self.camera_translation_points):
             label = "CAM_START" if i == 0 else ("CAM_END" if i == len(self.camera_translation_points)-1 else f"P{i}")
             rot = self.camera_rotations[i] if i < len(self.camera_rotations) else {"x": 0, "y": 0}
-            self.cam_listbox.insert(tk.END, 
-                f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) Pitch={rot['x']:.0f}° Yaw={rot['y']:.0f}°")
-    
+            item_text = f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) Pitch={rot['x']:.0f}° Yaw={rot['y']:.0f}°"
+            item = QListWidgetItem(item_text)
+            self.cam_listbox.addItem(item)
+            
     def add_translation_point(self):
         """Tambah translation point"""
         try:
-            point = [self.trans_x.get(), self.trans_y.get(), self.trans_z.get()]
-            rotation = {"x": self.rot_pitch.get(), "y": self.rot_yaw.get()}
-            
+            point = [self.trans_x.value(), self.trans_y.value(), self.trans_z.value()]
+            rotation = {"x": self.rot_pitch.value(), "y": self.rot_yaw.value()}
             self.translation_points.append(point)
             self.rotations.append(rotation)
-            
             self.update_trans_listbox()
-            self.status.config(text="Status: Object point added")
+            self.status.setText("Status: Object point added")
         except Exception as e:
-            messagebox.showerror("Error", f"Invalid input: {e}")
-    
+            QMessageBox.critical(self.window, "Error", f"Invalid input: {e}")
+            
     def remove_translation_point(self):
         """Hapus translation point"""
-        sel = self.trans_listbox.curselection()
-        if sel:
-            idx = sel[0]
-            self.translation_points.pop(idx)
-            self.rotations.pop(idx)
+        if self.selected_point_idx is not None and 0 <= self.selected_point_idx < self.trans_listbox.count():
+            self.translation_points.pop(self.selected_point_idx)
+            self.rotations.pop(self.selected_point_idx)
             self.update_trans_listbox()
-            self.status.config(text="Status: Object point removed")
-    
+            self.status.setText("Status: Object point removed")
+            self.selected_point_idx = None
+            
     def update_trans_listbox(self):
         """Update translation listbox"""
-        self.trans_listbox.delete(0, tk.END)
+        self.trans_listbox.clear()
         for i, p in enumerate(self.translation_points):
             label = "START" if i == 0 else ("END" if i == len(self.translation_points)-1 else f"P{i}")
             rot = self.rotations[i] if i < len(self.rotations) else {"x": 0, "y": 0}
-            self.trans_listbox.insert(tk.END, f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) Pitch={rot['x']:.0f}° Yaw={rot['y']:.0f}°")
-    
+            item_text = f"{label}: ({p[0]:.0f},{p[1]:.0f},{p[2]:.0f}) Pitch={rot['x']:.0f}° Yaw={rot['y']:.0f}°"
+            item = QListWidgetItem(item_text)
+            self.trans_listbox.addItem(item)
+            
     def save_camera(self):
         """Save camera settings"""
         try:
-            self.camera_position = [self.cam_x.get(), self.cam_y.get(), self.cam_z.get()]
-            self.camera_rotation = {"x": self.cam_pitch.get(), "y": self.cam_yaw.get()}
-            self.status.config(text="Status: Camera position saved")
+            self.camera_position = [self.cam_x.value(), self.cam_y.value(), self.cam_z.value()]
+            self.camera_rotation = {"x": self.cam_pitch.value(), "y": self.cam_yaw.value()}
+            self.status.setText("Status: Camera position saved")
         except Exception as e:
-            messagebox.showerror("Error", f"Invalid input: {e}")
-    
+            QMessageBox.critical(self.window, "Error", f"Invalid input: {e}")
+            
     def save_object(self):
         """Save object settings"""
         try:
-            self.total_frames = self.frame_var.get()
-            self.status.config(text="Status: Object settings saved")
+            self.total_frames = self.frame_var.value()
+            self.status.setText("Status: Object settings saved")
         except Exception as e:
-            messagebox.showerror("Error", f"Invalid input: {e}")
-    
+            QMessageBox.critical(self.window, "Error", f"Invalid input: {e}")
+            
     def load_config(self):
         """Load existing configuration"""
         try:
             self.config.load()
-            
             cam_settings = self.config.get_camera_settings()
             self.camera_position = cam_settings["translation"]["position"]
             self.camera_rotation = {
@@ -478,6 +680,7 @@ class GUIInput:
                 "y": cam_settings["rotation"]["yaw"]
             }
             
+            # Reset camera animation points
             self.camera_translation_points = []
             self.camera_rotations = []
             for point in cam_settings.get("animation_points", []):
@@ -487,6 +690,7 @@ class GUIInput:
                     "y": point["rotation"]["yaw"]
                 })
             
+            # Reset object animation points
             obj_points = self.config.get_animation_points()
             self.translation_points = []
             self.rotations = []
@@ -496,45 +700,62 @@ class GUIInput:
                     "x": point["rotation"]["pitch"],
                     "y": point["rotation"]["yaw"]
                 })
-            
+                
             self.total_frames = self.config.get_render_settings()["total_frames"]
             
-            self.load_status.config(text="✓ Configuration loaded successfully!")
-            self.status.config(text="Status: Configuration loaded")
+            # Update UI
+            self.cam_x.setValue(self.camera_position[0])
+            self.cam_y.setValue(self.camera_position[1])
+            self.cam_z.setValue(self.camera_position[2])
+            self.cam_pitch.setValue(self.camera_rotation["x"])
+            self.cam_yaw.setValue(self.camera_rotation["y"])
+            self.frame_var.setValue(self.total_frames)
+            
+            self.update_cam_listbox()
+            self.update_trans_listbox()
+            
+            self.load_status.setText("✓ Configuration loaded successfully!")
+            self.load_status.setStyleSheet("color: green;")
+            self.status.setText("Status: Configuration loaded")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load: {e}")
-            self.load_status.config(text="✗ Load failed", foreground="red")
-    
+            QMessageBox.critical(self.window, "Error", f"Failed to load: {e}")
+            self.load_status.setText("✗ Load failed")
+            self.load_status.setStyleSheet("color: red;")
+            
     def save_to_config(self):
         """Save current settings to config object"""
         if len(self.translation_points) == 0:
             self.translation_points = [[0.0, 0.0, 0.0]]
             self.rotations = [{"x": 0.0, "y": 0.0}]
-        
+            
         self.config.clear_object_animation_points()
         self.config.clear_camera_animation_points()
         
+        # Save object animation points
         for i, point in enumerate(self.translation_points):
             rot = self.rotations[i] if i < len(self.rotations) else {"x": 0.0, "y": 0.0}
             self.config.add_animation_point(point, rot["x"], rot["y"])
-        
+            
+        # Save camera animation points
         for i, point in enumerate(self.camera_translation_points):
             rot = self.camera_rotations[i] if i < len(self.camera_rotations) else {"x": 0.0, "y": 0.0}
             self.config.add_camera_animation_point(point, rot["x"], rot["y"])
-        
+            
+        # If no camera animation points, save current camera position and rotation
         if len(self.camera_translation_points) == 0:
             self.config.set_camera_settings(self.camera_position, 
-                                            self.camera_rotation["x"], 
-                                            self.camera_rotation["y"])
-        
+                                           self.camera_rotation["x"], 
+                                           self.camera_rotation["y"])
+                                           
+        # Save render settings
         self.config.set_render_settings(self.total_frames)
-    
+        
     def apply_config(self):
         """Apply config - save to JSON and update visualization"""
         try:
             self.save_to_config()
             self.config.save()
-            self.status.config(text="Status: Configuration saved to JSON and view updated!")
+            self.status.setText("Status: Configuration saved to JSON and view updated!")
             
             # Update visualization with current settings
             if len(self.translation_points) > 0:
@@ -551,29 +772,31 @@ class GUIInput:
                 )
             else:
                 self.update_vis()
-            
+                
             plt.draw()
-            messagebox.showinfo("Success", "Configuration saved!\n\nClick 'Render Now' when ready to render.")
+            QMessageBox.information(self.window, "Success", "Configuration saved!\nClick 'Render Now' when ready to render.")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save: {e}")
-    
+            QMessageBox.critical(self.window, "Error", f"Failed to save: {e}")
+            
     def render_config(self):
         """Render config - save and close window to start rendering"""
         try:
             self.save_to_config()
             self.config.save()
             self.result = self.config
-            self.window.destroy()
+            self.window.close()
         except Exception as e:
-            messagebox.showerror("Error", f"Failed: {e}")
-    
+            QMessageBox.critical(self.window, "Error", f"Failed: {e}")
+            
     def cancel(self):
         """Cancel"""
-        if messagebox.askyesno("Cancel", "Batalkan konfigurasi?"):
+        reply = QMessageBox.question(self.window, "Cancel", "Batalkan konfigurasi?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             self.result = None
-            self.window.destroy()
-    
+            self.window.close()
+            
     def run(self) -> Optional[ConfigManager]:
         """Run GUI"""
-        self.window.mainloop()
+        sys.exit(self.app.exec())
         return self.result
