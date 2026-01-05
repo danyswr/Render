@@ -1,5 +1,3 @@
-render_3D_to_2D.py
-
 
 """
 Render 3D Voxel to 2D Image - FINAL HIGH QUALITY
