@@ -1,0 +1,4 @@
+# Ignore large files
+*.npy
+__pycache__/
+*.pkl
